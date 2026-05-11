@@ -46,6 +46,21 @@ function loadPrompt(): string {
   return fs.readFileSync(promptPath, "utf8");
 }
 
+/**
+ * Load the canonical Julia mag glamour example so the model can see the exact
+ * structural depth expected — 11 pointers, ~16 tables in section 5, h3 sub-
+ * headings, kv pricing block, red-flags table, etc. This is appended to the
+ * system prompt so the model treats it as a worked example, not user input.
+ */
+function loadCanonicalExample(): string {
+  try {
+    const p = path.join(process.cwd(), "examples", "julia_mag_glamour_canonical.json");
+    return fs.readFileSync(p, "utf8");
+  } catch {
+    return ""; // fall back if not bundled
+  }
+}
+
 // Hard cap on a single LLM round-trip. The full report schema requires the
 // model to fill 11 sections worth of content (~8K tokens) — Sonnet at
 // ~50-100 tok/sec needs 100-180s. We give 240s to allow comfortable margin.
@@ -199,22 +214,68 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
                 },
                 section5_pointers: {
                   type: "array",
-                  description: "8-11 post-payment pointer subsections.",
+                  description:
+                    "EXACTLY 11 post-payment pointer subsections, in this canonical order: " +
+                    "Pointer 1 — Lead source; " +
+                    "Pointer 2 — Content of all outreach tied to entity ID (MUST include a 5-channel breakdown TABLE: Channel/Inbound/Outbound/Note); " +
+                    "Pointer 3 — Communications before payment + Chargebee/Stripe timestamp validation (MUST include a TABLE with System/Customer ID/Created columns); " +
+                    "Pointer 4 — What happened on the demo call (MUST include h3 sub-headings and either a 'Promised vs delivered' TABLE or a Module 02 Question/Status TABLE); " +
+                    "Pointer 5 — Whether sales was pushy for first payment; " +
+                    "Pointer 6 — Customer financial status; " +
+                    "Pointer 7 — ICP fit (Module 02 cross-reference to Section 4); " +
+                    "Pointer 8 — Stay long-term vs short-term; " +
+                    "Pointer 9 — Customer short-term and long-term expectations (h3 sub-headings); " +
+                    "Pointer 10 — Potential retention red flags (MUST include a TABLE with ID/Red flag/Severity/Why it matters columns); " +
+                    "Pointer 11 — Pricing / discount context (MUST include a KV block listing Plan, line item, total, discount, payment method, billing cadence, missed payments). " +
+                    "Across all 11 pointers, the section should render ~16 tables (target the same total as the Be Beauty Studio canonical example).",
+                  minItems: 11,
+                  maxItems: 11,
                   items: {
                     type: "object",
                     properties: {
-                      title: { type: "string", description: "Pointer subsection title." },
+                      title: { type: "string", description: "Format: 'Pointer N — <subject>'" },
                       source: { type: "string", description: "Data source label e.g. 'review_metrics.csv, BaseSheet'" },
                       signal: { type: "string", description: "One-line signal value." },
                       signal_status: { type: "string", enum: ["PASS", "FAIL", "AUTOFAIL", "WARN", "GAP", "RISK"] },
                       blocks: {
                         type: "array",
-                        description: "Body paragraphs. Each block { type: 'para'|'bullet', text: string }.",
+                        minItems: 1,
+                        description:
+                          "Body content. Mix of block types: 'para' (paragraph), 'bullet' (bullet point), " +
+                          "'blockquote' (verbatim quote, optional attribution), 'h3' (sub-heading inside the pointer), " +
+                          "'richpara' (formatted runs with bold/italics/color), 'table' (nested table with columnWidths + rows), " +
+                          "'kv' (2-column key-value table). " +
+                          "REQUIRED block types per pointer: " +
+                          "Pointer 2 MUST contain a 'table' (channel breakdown). " +
+                          "Pointer 3 MUST contain a 'table' (timestamp validation). " +
+                          "Pointer 4 MUST contain at least 2 'h3' headings + a 'table'. " +
+                          "Pointer 9 MUST contain at least 2 'h3' headings. " +
+                          "Pointer 10 MUST contain a 'table' (red flags). " +
+                          "Pointer 11 MUST contain a 'kv' block (pricing).",
                         items: {
                           type: "object",
                           properties: {
-                            type: { type: "string", enum: ["para", "bullet", "richpara"] },
-                            text: { type: "string" },
+                            type: { type: "string", enum: ["para", "bullet", "blockquote", "h3", "richpara", "table", "kv"] },
+                            text: { type: "string", description: "Used by para/bullet/blockquote/h3" },
+                            attribution: { type: "string", description: "Optional, used by blockquote" },
+                            runs: {
+                              type: "array",
+                              description: "Used by richpara — array of { text, bold?, italics?, color? }",
+                              items: { type: "object", additionalProperties: true },
+                            },
+                            columnWidths: {
+                              type: "array",
+                              items: { type: "number" },
+                              description: "Used by table — array of column widths in DXA (twentieths of a point). Total should sum to 9360.",
+                            },
+                            rows: {
+                              type: "array",
+                              description:
+                                "Used by table and kv. For table: first row is headers, subsequent rows are data. " +
+                                "Cells can be plain strings, or { value, bold?, status? } objects, or { status: 'PASS'|'FAIL'|...} for status badges. " +
+                                "For kv: array of [key, value] pairs.",
+                              items: {},
+                            },
                           },
                           required: ["type"],
                           additionalProperties: true,
@@ -346,7 +407,14 @@ export async function evaluate(args: {
   fireflies?: any;
   hubspot?: any;
 }): Promise<EvalResult> {
-  const systemPrompt = loadPrompt();
+  const basePrompt = loadPrompt();
+  const canonical = loadCanonicalExample();
+  // Append the worked example to the system prompt so the model sees the
+  // exact target structure. Worked examples in the system prompt are far more
+  // effective at locking output shape than schema descriptions alone.
+  const systemPrompt = canonical
+    ? `${basePrompt}\n\n---\n\n## CANONICAL WORKED EXAMPLE (target this structural depth for every customer)\n\nThe following is the full reportData JSON for Julia mag glamour, which the renderer turns into a 177-paragraph / 32-table Word document matching the canonical template. Every new report MUST hit equivalent depth: 11 pointers, ~16 tables in Section 5, h3 sub-headings, table/kv blocks where indicated. Adapt the CONTENT to the customer being analysed, but keep the SHAPE and DEPTH identical.\n\n\`\`\`json\n${canonical}\n\`\`\``
+    : basePrompt;
   const userPrompt = [
     "# Bundle (deterministic data)",
     "```json",
@@ -365,9 +433,18 @@ export async function evaluate(args: {
     "",
     "INSTRUCTIONS:",
     "Call the `submit_analysis` tool with the analytical sections of the report. Required sections: exec, section3_risks, section4_framework, section5_pointers, section6_actions, section7_systemic, section8_gaps, section9_evidence.",
-    "NOTE: meta, section1 (subject + sources tables), and references are populated automatically by the system from bundle data — do not include them in your tool call.",
-    "Match the depth and tone of the Be Beauty Studio worked example: 5-paragraph executive summary, 5-8 quantified risks, all three Step-1 gates and Step-2 row evaluations, 8-11 post-payment pointers with sourced evidence blocks, a concrete action plan with verbatim AM script, systemic recommendations, open gaps, and a methodology paragraph + evidence trail.",
-    "Cite specific evidence: exact phone-call durations, verbatim message text, the predicted-leads number, the review count, the AE/AM names, the booking platform, etc.",
+    "NOTE: meta, section1 (subject + sources tables), and references are populated automatically by the system from bundle data — DO NOT include them in your tool call.",
+    "STANDARDISATION REQUIREMENT — the output JSON must render to a Word document with the same depth/structure as the canonical examples (Be Beauty Studio and Julia mag glamour). Specifically:",
+    "  • exec.summary_paragraphs: 5 substantive paragraphs",
+    "  • section3_risks.risks: 5-8 entries with id/risk/likelihood/impact/driver_mitigation",
+    "  • section4_framework.step1: EXACTLY 3 gate rows (1.1 Device, 1.2 Lead prediction, 1.3 Booking platform) with status + evidence; evidence MAY be a string OR an array of block objects ({type: 'para'|'richpara', text/runs}) for rich formatting",
+    "  • section4_framework.step2: 1-3 rule rows; section4_framework.disqualifiers: 5-7 disqualifier rows; section4_framework.summary_table: 3 layer rows",
+    "  • section5_pointers: EXACTLY 11 pointers in canonical order (see schema description). Across all 11, target ~16 tables: Pointer 2 (comms breakdown table), Pointer 3 (timestamp validation table), Pointer 4 (promised-vs-delivered or Module-02-question table + h3 sub-headings), Pointer 9 (h3 sub-headings), Pointer 10 (red-flags table), Pointer 11 (kv pricing block). Other pointers can use para/bullet blocks but should also include at least one rich block (kv or table) where data warrants.",
+    "  • section6_actions: 5 actions + verbatim am_script + 3 branch_paragraphs",
+    "  • section7_systemic: 5 recommendations with priority P0/P1/P2",
+    "  • section8_gaps.items: 7-10 one-sentence gaps",
+    "  • section9_evidence: 3 methodology_paragraphs + 12-15 evidence_trail bullets, each citing source field",
+    "EVIDENCE DISCIPLINE — every numerical claim cites the source field (e.g., \"review_metrics.csv total_reviews_at_onboarding = 3\"). Where data is missing, mark status GAP — never assert facts the data does not support.",
     "You MAY also emit a short TEXT content block before the tool call summarizing the verdict — it'll be used as the Slack thread reply.",
   ].join("\n");
 

@@ -233,7 +233,9 @@ Return your evaluation as a single Markdown document with these exact section he
 
 In addition to the Markdown analysis above, you MUST emit a single fenced ```json block at the end of your response, conforming to the report-template schema. The orchestrator will parse this block and call `node render_report.js` to produce the Post-Payment Account Review docx.
 
-The full schema is documented and exemplified in `report_schema.example.json` (Be Beauty Studio is the worked example). Top-level keys required:
+The full schema is documented in `report_schema.example.json` and `examples/julia_mag_glamour_canonical.json` (both are worked examples). The Julia example shows the exact richness target — 11 pointers, ~16 tables across Section 5, h3 sub-headings inside Pointers 4 and 9, a 5-channel comms breakdown table in Pointer 2, a timestamp-validation table in Pointer 3, a red-flags table in Pointer 10, and a kv pricing block in Pointer 11. NO customer report should fall below this structural depth.
+
+Top-level keys required:
 
 - `meta` — title, subtitle, classification banner, subject_account, header_text
 - `exec` — verdict_label, verdict_status (one of: PASS / FAIL / WARN / GAP / DQ / AUTOFAIL / BORDER / RISK / MIXED), recommended_action_label, driver, reinforcing_flags, mitigating_factors, summary_paragraphs (array of 3–5 paragraphs), net_retention_picture, likely_outcome

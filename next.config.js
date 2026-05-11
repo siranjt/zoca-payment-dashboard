@@ -13,10 +13,10 @@ const nextConfig = {
     // NOTE: On Next.js 14.x this lives under `experimental`; it moved to the
     // top level in Next 15. If/when we upgrade, hoist this out.
     outputFileTracingIncludes: {
-      "/api/analyze/[customer_id]":        ["./prompt.md", "./report_schema.example.json"],
-      "/api/analyze/[customer_id]/comms":  ["./prompt.md", "./report_schema.example.json"],
-      "/api/analyze/[customer_id]/llm":    ["./prompt.md", "./report_schema.example.json"],
-      "/api/analyze/[customer_id]/render": ["./prompt.md", "./report_schema.example.json"],
+      "/api/analyze/[customer_id]":        ["./prompt.md", "./report_schema.example.json", "./examples/julia_mag_glamour_canonical.json"],
+      "/api/analyze/[customer_id]/comms":  ["./prompt.md", "./report_schema.example.json", "./examples/julia_mag_glamour_canonical.json"],
+      "/api/analyze/[customer_id]/llm":    ["./prompt.md", "./report_schema.example.json", "./examples/julia_mag_glamour_canonical.json"],
+      "/api/analyze/[customer_id]/render": ["./prompt.md", "./report_schema.example.json", "./examples/julia_mag_glamour_canonical.json"],
       "/api/cb-webhook":                   ["./prompt.md"],
     },
   },
