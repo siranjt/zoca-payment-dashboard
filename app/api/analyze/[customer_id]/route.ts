@@ -251,6 +251,31 @@ export async function POST(req: NextRequest, ctx: { params: { customer_id: strin
     return NextResponse.json({ ok: false, error: "missing_customer_id" }, { status: 400 });
   }
 
+  // IDEMPOTENCY — by default, skip the full pipeline if this customer already
+  // has a verdict or is out-of-scope. The pipeline is expensive (~3 minutes,
+  // pays for Anthropic tokens). It should run ONCE per customer (when the
+  // Chargebee webhook fires) and not re-run on every deploy.
+  //
+  // To force a re-run (e.g., for debugging, or after the LLM prompt has been
+  // materially improved), pass ?force=true. To re-render the docx from the
+  // existing reportData without re-running the LLM, use POST /api/rerender/[id]
+  // instead — that's a 5-second operation.
+  const url = new URL(req.url);
+  const force = url.searchParams.get("force") === "true";
+  if (!force) {
+    const existing = await getCustomer(customerId).catch(() => null);
+    if (existing && (existing.status === "ready" || existing.status === "out_of_scope")) {
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        reason: `customer already ${existing.status} (verdict=${existing.verdict ?? "n/a"}). Pass ?force=true to re-run, or POST /api/rerender/${customerId} to just re-render the docx.`,
+        customer_id: customerId,
+        status: existing.status,
+        verdict: existing.verdict,
+      });
+    }
+  }
+
   // Create a stub customer row IMMEDIATELY so logEvent's FK is satisfied even
   // if the full bundle build hasn't run yet. cb_created_at is a placeholder
   // (NOW()) that gets overwritten by the real timestamp once bundle resolves.
@@ -264,7 +289,7 @@ export async function POST(req: NextRequest, ctx: { params: { customer_id: strin
       ok: false, stage: "stub", error: e?.message ?? String(e),
     }, { status: 500 });
   }
-  await logEvent(customerId, "queued", { ts_iso: new Date().toISOString() });
+  await logEvent(customerId, "queued", { ts_iso: new Date().toISOString(), forced: force });
   await setCustomerStatus(customerId, "processing");
 
   // Kick off the full pipeline as background work. The response goes out as

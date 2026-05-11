@@ -215,21 +215,19 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
                 section5_pointers: {
                   type: "array",
                   description:
-                    "EXACTLY 11 post-payment pointer subsections, in this canonical order: " +
+                    "11 post-payment pointer subsections in canonical order: " +
                     "Pointer 1 — Lead source; " +
-                    "Pointer 2 — Content of all outreach tied to entity ID (MUST include a 5-channel breakdown TABLE: Channel/Inbound/Outbound/Note); " +
-                    "Pointer 3 — Communications before payment + Chargebee/Stripe timestamp validation (MUST include a TABLE with System/Customer ID/Created columns); " +
-                    "Pointer 4 — What happened on the demo call (MUST include h3 sub-headings and either a 'Promised vs delivered' TABLE or a Module 02 Question/Status TABLE); " +
-                    "Pointer 5 — Whether sales was pushy for first payment; " +
+                    "Pointer 2 — Comms breakdown (include a 'table' block where data exists); " +
+                    "Pointer 3 — Timestamp validation (include a 'table' block); " +
+                    "Pointer 4 — Demo call (use 'h3' sub-headings); " +
+                    "Pointer 5 — Sales pressure check; " +
                     "Pointer 6 — Customer financial status; " +
-                    "Pointer 7 — ICP fit (Module 02 cross-reference to Section 4); " +
-                    "Pointer 8 — Stay long-term vs short-term; " +
-                    "Pointer 9 — Customer short-term and long-term expectations (h3 sub-headings); " +
-                    "Pointer 10 — Potential retention red flags (MUST include a TABLE with ID/Red flag/Severity/Why it matters columns); " +
-                    "Pointer 11 — Pricing / discount context (MUST include a KV block listing Plan, line item, total, discount, payment method, billing cadence, missed payments). " +
-                    "Across all 11 pointers, the section should render ~16 tables (target the same total as the Be Beauty Studio canonical example).",
-                  minItems: 11,
-                  maxItems: 11,
+                    "Pointer 7 — ICP fit (cross-ref Section 4); " +
+                    "Pointer 8 — Stay long/short-term; " +
+                    "Pointer 9 — Customer expectations (use 'h3'); " +
+                    "Pointer 10 — Red flags (include a 'table' block); " +
+                    "Pointer 11 — Pricing (include a 'kv' block). " +
+                    "Target ~12-16 tables across the section. Reference the worked example in the system prompt for shape.",
                   items: {
                     type: "object",
                     properties: {

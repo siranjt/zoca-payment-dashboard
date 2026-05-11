@@ -17,6 +17,8 @@ const nextConfig = {
       "/api/analyze/[customer_id]/comms":  ["./prompt.md", "./report_schema.example.json", "./examples/julia_mag_glamour_canonical.json"],
       "/api/analyze/[customer_id]/llm":    ["./prompt.md", "./report_schema.example.json", "./examples/julia_mag_glamour_canonical.json"],
       "/api/analyze/[customer_id]/render": ["./prompt.md", "./report_schema.example.json", "./examples/julia_mag_glamour_canonical.json"],
+      "/api/rerender/[customer_id]":       [],
+      "/api/rerender/all":                 [],
       "/api/cb-webhook":                   ["./prompt.md"],
     },
   },
