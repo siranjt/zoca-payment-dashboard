@@ -40,6 +40,13 @@ export async function GET() {
       storage_url_set: !!process.env.STORAGE_URL,
       storage_database_url_set: !!process.env.STORAGE_DATABASE_URL,
       postgres_prisma_url_set: !!process.env.POSTGRES_PRISMA_URL,
+      // Hostname only — proves WHICH Neon branch the function is talking to
+      // without leaking the password. If this hostname differs between calls,
+      // we're hitting different databases.
+      postgres_url_host: (() => {
+        try { return new URL(process.env.POSTGRES_URL ?? "").host || "(empty)"; }
+        catch { return "(invalid)"; }
+      })(),
       anthropic_model: process.env.ANTHROPIC_MODEL ?? "(unset → default)",
       next_public_app_url: process.env.NEXT_PUBLIC_APP_URL ?? "(unset)",
       vercel_url: process.env.VERCEL_URL ?? "(unset)",
@@ -49,6 +56,19 @@ export async function GET() {
     },
     checks: {} as Record<string, any>,
   };
+
+  // Identify the database the connection actually landed on. Postgres exposes
+  // current_database() (logical DB name) and inet_server_addr() (host IP).
+  try {
+    const { rows } = await sql`
+      SELECT current_database()::text AS db_name,
+             inet_server_addr()::text AS server_addr,
+             current_setting('server_version') AS pg_version
+    `;
+    out.db_identity = rows[0] ?? null;
+  } catch (e: any) {
+    out.db_identity_error = e?.message ?? String(e);
+  }
 
   // 1. Can we SELECT from customers?
   try {
