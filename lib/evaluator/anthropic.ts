@@ -97,11 +97,53 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
                 },
                 exec: {
                   type: "object",
-                  description:
-                    "Executive summary. Required fields: verdict_label (ICP|Review|Not ICP), " +
-                    "verdict_status (PASS|WARN|FAIL), recommended_action_label, driver " +
-                    "(one-line reason), reinforcing_flags (string), mitigating_factors (string), " +
-                    "summary_paragraphs (array of strings), net_retention_picture, likely_outcome",
+                  description: "Executive summary — the verdict block displayed on the dashboard and Slack.",
+                  properties: {
+                    verdict_label: {
+                      type: "string",
+                      enum: ["ICP", "Review", "Not ICP"],
+                      description: "Final classification — one of: ICP, Review, Not ICP",
+                    },
+                    verdict_status: {
+                      type: "string",
+                      enum: ["PASS", "WARN", "FAIL"],
+                      description: "Status banner color — PASS (green) / WARN (yellow) / FAIL (red)",
+                    },
+                    recommended_action_label: {
+                      type: "string",
+                      description: "Short imperative phrase — e.g. 'AM-led recovery within 7 days', 'Onboard normally', 'Refund and re-entry trigger'. Include the word 'AM' if the AM team needs to act.",
+                    },
+                    driver: {
+                      type: "string",
+                      description: "One-line reason for the verdict, citing the specific Module 02 rule that drove the decision.",
+                    },
+                    reinforcing_flags: {
+                      type: "string",
+                      description: "Single string listing 2-4 additional flags that reinforce the verdict (semicolon-separated).",
+                    },
+                    mitigating_factors: {
+                      type: "string",
+                      description: "Single string listing factors that argue AGAINST the verdict (semicolon-separated). Use empty string if none.",
+                    },
+                    summary_paragraphs: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "4-6 paragraph executive summary, in order.",
+                    },
+                    net_retention_picture: {
+                      type: "string",
+                      description: "One-paragraph retention outlook.",
+                    },
+                    likely_outcome: {
+                      type: "string",
+                      description: "Most probable outcome if no action is taken (refund, churn, retain, etc.).",
+                    },
+                  },
+                  required: [
+                    "verdict_label", "verdict_status", "recommended_action_label",
+                    "driver", "reinforcing_flags", "mitigating_factors",
+                    "summary_paragraphs", "net_retention_picture", "likely_outcome",
+                  ],
                   additionalProperties: true,
                 },
                 section1: { type: "object", description: "Subject identifier + data sources tables", additionalProperties: true },
@@ -178,7 +220,9 @@ export async function evaluate(args: {
     JSON.stringify(args.hubspot ?? null, null, 2),
     "```",
     "",
-    "Produce the full Markdown analysis as text content, THEN call the `submit_analysis` tool with the report JSON.",
+    "INSTRUCTIONS:",
+    "1) Write the full Markdown analysis as a TEXT content block. Include the verdict, the Module 02 rule that drives it, the reinforcing flags, the comms analysis, and the recommended action. Quote specific evidence.",
+    "2) Then call the `submit_analysis` tool. The tool input MUST include `exec.verdict_label` (one of: ICP, Review, Not ICP), `exec.verdict_status` (PASS/WARN/FAIL), `exec.driver` (one-line reason), `exec.recommended_action_label`, `exec.reinforcing_flags`, `exec.mitigating_factors`, `exec.summary_paragraphs`, `exec.net_retention_picture`, `exec.likely_outcome`, plus ALL the other top-level sections (meta, section1, section3_risks, section4_framework, section5_pointers, section6_actions, section7_systemic, section8_gaps, section9_evidence, references). Do not skip any required field — the dashboard and the Word doc renderer both depend on them.",
   ].join("\n");
 
   const { markdown, reportData } = await callOnce(systemPrompt, userPrompt);
