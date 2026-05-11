@@ -11,7 +11,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { sql } from "@/lib/db/queries";
+import { sql, getDbHost } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,6 +46,9 @@ export async function GET() {
         try { return new URL(process.env.POSTGRES_URL ?? "").host || "(empty)"; }
         catch { return "(invalid)"; }
       })(),
+      // Effective host the Neon driver is actually using (after -pooler strip).
+      // Should NOT contain "-pooler" if our fix is working.
+      effective_db_host: getDbHost(),
       anthropic_model: process.env.ANTHROPIC_MODEL ?? "(unset → default)",
       next_public_app_url: process.env.NEXT_PUBLIC_APP_URL ?? "(unset)",
       vercel_url: process.env.VERCEL_URL ?? "(unset)",

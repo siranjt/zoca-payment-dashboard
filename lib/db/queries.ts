@@ -15,9 +15,9 @@
 import { neon } from "@neondatabase/serverless";
 
 // Pick the unpooled URL by preference — it's a direct connection to Neon's
-// primary, which is what we want for read-after-write consistency. Fall
-// back to the pooled URL if no unpooled variant exists.
-const CONNECTION_URL =
+// primary compute endpoint, which is what we want for read-after-write
+// consistency.
+const RAW_URL =
   process.env.DATABASE_URL_UNPOOLED ??
   process.env.STORAGE_DATABASE_URL_UNPOOLED ??
   process.env.POSTGRES_URL_NON_POOLING ??
@@ -28,6 +28,25 @@ const CONNECTION_URL =
   process.env.POSTGRES_PRISMA_URL ??
   "";
 
+/**
+ * Strip the `-pooler` segment from the Neon hostname so we connect to the
+ * direct compute endpoint instead of the PgBouncer pooler. The pooler can
+ * route subsequent queries to different backends, which causes our writes
+ * to appear committed in one HTTP request but invisible in the next.
+ *
+ * Neon URL format:
+ *   pooled:   postgres://user:pwd@ep-xyz-pooler.region.aws.neon.tech/db
+ *   unpooled: postgres://user:pwd@ep-xyz.region.aws.neon.tech/db
+ *
+ * If the env already pointed to the unpooled variant, this is a no-op.
+ */
+function ensureDirectCompute(url: string): string {
+  if (!url) return url;
+  return url.replace(/-pooler(\.[^.]+\.[^.]+\.aws\.neon\.tech)/, "$1");
+}
+
+const CONNECTION_URL = ensureDirectCompute(RAW_URL);
+
 if (!CONNECTION_URL) {
   console.error("[db] No connection URL found in env. Set DATABASE_URL_UNPOOLED or POSTGRES_URL.");
 }
@@ -36,6 +55,13 @@ if (!CONNECTION_URL) {
 // returns `{ rows, rowCount, ... }` matching @vercel/postgres's shape, so
 // existing destructuring like `const { rows } = await sql\`...\`` works.
 export const sql = neon(CONNECTION_URL, { fullResults: true }) as any;
+
+// Export for diag — lets the health endpoint show which hostname we're hitting
+// without leaking credentials.
+export function getDbHost(): string {
+  try { return new URL(CONNECTION_URL).host; }
+  catch { return "(invalid)"; }
+}
 
 export type CustomerScope =
   | "discovery_first_pay"
