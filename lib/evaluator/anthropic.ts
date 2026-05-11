@@ -14,7 +14,10 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Bundle } from "@/lib/validator/bundle";
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-opus-4-6";
+// Default to Sonnet (fast, comparable quality). Override with ANTHROPIC_MODEL.
+// IMPORTANT: Opus regularly exceeds 60s on this prompt — only use it if Vercel
+// Fluid Compute is verified to be granting >60s timeouts.
+const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
 const MAX_TOKENS = 12_000;
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? "" });
