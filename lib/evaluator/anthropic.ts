@@ -84,20 +84,11 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
               "have equivalent depth and structure.",
             input_schema: {
               type: "object",
+              // meta, section1, and references are populated in code from bundle
+              // data — DO NOT include them in the tool input. Leaving them out
+              // of the schema reduces the model's token output budget and keeps
+              // those deterministic sections consistent across customers.
               properties: {
-                meta: {
-                  type: "object",
-                  description: "Doc header/footer metadata.",
-                  properties: {
-                    classification_banner: { type: "string", description: "Top-of-cover classification e.g. 'ZOCA · CONFIDENTIAL'" },
-                    title: { type: "string", description: "'Post-Payment Account Review'" },
-                    subtitle: { type: "string", description: "'ICP Fit Assessment & Post-Payment Pointer Analysis'" },
-                    subject_account: { type: "string", description: "'<Business name> (<Owner name>)'" },
-                    header_text: { type: "string", description: "Running header for inner pages" },
-                  },
-                  required: ["classification_banner", "title", "subtitle", "subject_account", "header_text"],
-                  additionalProperties: true,
-                },
                 exec: {
                   type: "object",
                   description: "Executive summary block. Drives the dashboard verdict pill, Slack message, and the cover page.",
@@ -113,16 +104,6 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
                     likely_outcome: { type: "string", description: "Most probable outcome if no action." },
                   },
                   required: ["verdict_label", "verdict_status", "recommended_action_label", "driver", "reinforcing_flags", "mitigating_factors", "summary_paragraphs", "net_retention_picture", "likely_outcome"],
-                  additionalProperties: true,
-                },
-                section1: {
-                  type: "object",
-                  description: "Subject identifier and data sources tables.",
-                  properties: {
-                    subject_table: { type: "array", items: { type: "array", items: { type: "string" } }, description: "2D array (table). First row is headers ['Subject identifier', 'Value']. Following rows: ['Business name', '<name>'], ['Owner / decision-maker', '<name>'], etc. Include all the standard rows from the example: Business name, Owner, Primary category, Location, Chargebee customer ID, Stripe customer ID, Zoca entity ID, First Discovery payment, Subscription SKU, AE, AM." },
-                    data_sources_table: { type: "array", items: { type: "array", items: { type: "string" } }, description: "2D array. First row: ['Data source', 'Type', 'Used for']. Rows for each source the validator used." },
-                  },
-                  required: ["subject_table", "data_sources_table"],
                   additionalProperties: true,
                 },
                 section3_risks: {
@@ -312,43 +293,11 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
                   required: ["methodology_paragraphs", "evidence_trail"],
                   additionalProperties: true,
                 },
-                references: {
-                  type: "object",
-                  description: "Source references — rendered as a 3-column table + matching keys table.",
-                  properties: {
-                    intro: { type: "string" },
-                    entries: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          source: { type: "string" },
-                          identifier: { type: "string" },
-                          url: { type: "string" },
-                        },
-                        required: ["source", "identifier", "url"],
-                      },
-                    },
-                    matching_keys: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          key: { type: "string" },
-                          usage: { type: "string" },
-                        },
-                        required: ["key", "usage"],
-                      },
-                    },
-                  },
-                  required: ["intro", "entries"],
-                  additionalProperties: true,
-                },
               },
               required: [
-                "meta", "exec", "section1", "section3_risks", "section4_framework",
+                "exec", "section3_risks", "section4_framework",
                 "section5_pointers", "section6_actions", "section7_systemic",
-                "section8_gaps", "section9_evidence", "references",
+                "section8_gaps", "section9_evidence",
               ],
               additionalProperties: true,
             },
@@ -415,18 +364,134 @@ export async function evaluate(args: {
     "```",
     "",
     "INSTRUCTIONS:",
-    "Call the `submit_analysis` tool with the FULL structured report. Fill in every required section — the output JSON renders into a complete multi-section Word document.",
-    "Use report_schema.example.json (Be Beauty Studio worked example) as your shape reference. Your output should match its depth: cover meta, full executive summary, subject identifier table, data sources table, 5-8 risks in section3_risks, all three Step-1 gates and Step-2 row in section4_framework, 8-15 pointers in section5_pointers, recommended actions, systemic recommendations, open gaps, evidence snippets with quotes from comms, and references.",
+    "Call the `submit_analysis` tool with the analytical sections of the report. Required sections: exec, section3_risks, section4_framework, section5_pointers, section6_actions, section7_systemic, section8_gaps, section9_evidence.",
+    "NOTE: meta, section1 (subject + sources tables), and references are populated automatically by the system from bundle data — do not include them in your tool call.",
+    "Match the depth and tone of the Be Beauty Studio worked example: 5-paragraph executive summary, 5-8 quantified risks, all three Step-1 gates and Step-2 row evaluations, 8-11 post-payment pointers with sourced evidence blocks, a concrete action plan with verbatim AM script, systemic recommendations, open gaps, and a methodology paragraph + evidence trail.",
     "Cite specific evidence: exact phone-call durations, verbatim message text, the predicted-leads number, the review count, the AE/AM names, the booking platform, etc.",
     "You MAY also emit a short TEXT content block before the tool call summarizing the verdict — it'll be used as the Slack thread reply.",
   ].join("\n");
 
   const { markdown, reportData } = await callOnce(systemPrompt, userPrompt);
+
+  // OVERRIDE the deterministic sections with bundle-derived data. This
+  // guarantees meta/section1/references are consistent across customers and
+  // match the canonical template format exactly. The LLM-supplied versions of
+  // these sections are discarded in favor of the bundle-computed truth.
+  reportData.meta = buildMeta(args.bundle);
+  reportData.section1 = buildSection1(args.bundle);
+  reportData.references = buildReferences();
+
   // If the model skipped the text content (some models do that with forced
   // tool use), synthesize a minimal markdown summary from the structured data
   // so Slack still has something to post.
   const finalMarkdown = markdown.length > 50 ? markdown : synthesizeMarkdownFromReport(reportData);
   return { markdown: finalMarkdown, reportData, raw: markdown };
+}
+
+/**
+ * Bundle-derived meta block. Same structure every run; only subject_account
+ * varies per customer. Matches the cover-page convention from the Be Beauty
+ * Studio worked example.
+ */
+function buildMeta(bundle: any): any {
+  const cb = bundle.chargebee_customer ?? {};
+  const ent = (bundle.entities ?? [])[0] ?? {};
+  const bizName = ent.bizname ?? cb.cf_entity_name ?? cb.company ?? "(business)";
+  const owner = [cb.first_name, cb.last_name].filter(Boolean).join(" ");
+  const subjectAccount = owner ? `${bizName} (${owner})` : bizName;
+  return {
+    classification_banner: "ZOCA · CONFIDENTIAL",
+    title: "Post-Payment Account Review",
+    subtitle: "ICP Fit Assessment & Post-Payment Pointer Analysis",
+    subject_account: subjectAccount,
+    header_text: `Zoca · Confidential — Post-Payment Account Review · ${bizName}`,
+  };
+}
+
+/**
+ * Bundle-derived section1: subject identifier table + data sources table.
+ * Both are deterministic — every row's value comes straight from bundle
+ * fields. data_sources_table is the same list every run (the validator
+ * always uses the same set of sources).
+ */
+function buildSection1(bundle: any): any {
+  const cb = bundle.chargebee_customer ?? {};
+  const ent = (bundle.entities ?? [])[0] ?? {};
+  const sub = bundle.subscription ?? {};
+  const stripe = bundle.stripe_customer ?? {};
+  const bizName = ent.bizname ?? cb.cf_entity_name ?? cb.company ?? "—";
+  const owner = [cb.first_name, cb.last_name].filter(Boolean).join(" ") || "—";
+  const primaryCategory = ent.primary_category ?? "—";
+  const locality = ent.locality ?? "";
+  const stateCode = ent.state ?? "";
+  const location = [locality, stateCode].filter(Boolean).join(", ") || "—";
+  const cbId = bundle.customer_id ?? cb.id ?? "—";
+  const stripeId = stripe.id ?? "—";
+  const entityId = ent.entity_id ?? "—";
+  const firstPayUnix = bundle.t_chargebee_unix;
+  const firstPayStr = firstPayUnix
+    ? new Date(firstPayUnix * 1000).toISOString().replace("T", " at ").slice(0, 22) + " UTC"
+    : "—";
+  const subSkus = (sub.subscription_items ?? []).map((i: any) => i.item_price_id).join(", ") || "—";
+  const aeName = ent.ae_name ?? "—";
+  const amName = ent.am_name ?? "—";
+
+  return {
+    subject_table: [
+      ["Subject identifier", "Value"],
+      ["Business name", bizName],
+      ["Owner / decision-maker", owner],
+      ["Primary category (BaseSheet)", primaryCategory],
+      ["Location", location],
+      ["Chargebee customer ID", cbId],
+      ["Stripe customer ID", stripeId],
+      ["Zoca entity ID", entityId],
+      ["First Discovery payment", firstPayStr],
+      ["Subscription SKU", subSkus],
+      ["Account executive (sale)", `${aeName}${aeName !== "—" ? " (per BaseSheet ae_name)" : ""}`],
+      ["Account manager (post-sale)", `${amName}${amName !== "—" ? " (per BaseSheet am_name)" : ""}`],
+    ],
+    data_sources_table: [
+      ["Data source", "Type", "Used for"],
+      ["Chargebee API", "Live REST", "Customer record, subscription, invoice, payment status, customer.created_at timestamp"],
+      ["Stripe API", "Live REST", "Customer record by email, customer.created timestamp, payment-method status, transaction record"],
+      ["Metabase BaseSheet", "CSV (87763e8c)", "Entity ID, business name, AE/AM, primary category, lead-source label, churn flags, ticket counts, missed-payment flags, predicted_6_month_leads"],
+      ["Metabase comms — App Chat / Email / Phone / SMS / Video", "CSV (5 endpoints)", "All inbound and outbound communications tied to entity ID, filtered to the 90-day window before T_created"],
+      ["Booking platform CSV", "CSV (4d3a953e)", "Verifies Step-1.3 booking-platform gate by entity ID; identifies linked social media accounts"],
+      ["Business opening date CSV", "CSV (8b6f5349)", "Verifies GBP age disqualifier (Open Info → Opening Date → Year/Month/Day) by entity ID"],
+      ["Review metrics CSV", "CSV (88a7ea2a)", "predicted_6_month_leads, total_reviews_at_onboarding, avg_rating_at_onboarding, review_target, pre-onboard GBP profile clicks"],
+      ["Fireflies", "MCP", "Demo / discovery transcript matching by participant email or business name within 90-day window"],
+      ["HubSpot", "MCP", "Lead source, deal stage, lifecycle stage, owner, contact properties"],
+    ],
+  };
+}
+
+/**
+ * Static references registry — same every run, since the validator always
+ * uses the same set of data sources. Matches Be Beauty Studio Appendix C.
+ */
+function buildReferences(): any {
+  return {
+    intro: "Every claim in this report can be traced to one of the sources catalogued below. Wherever a source could not provide data for this entity, the gap is explicitly called out in the relevant section above (data gap).",
+    entries: [
+      { source: "Chargebee API", identifier: "zoca.chargebee.com", url: "https://zoca.chargebee.com/" },
+      { source: "Stripe API", identifier: "stripe.com/customers", url: "https://stripe.com/" },
+      { source: "Metabase BaseSheet", identifier: "card 87763e8c", url: "https://metabase.zoca.ai/public/question/87763e8c-8084-442e-891a-df1b11e81b47.csv" },
+      { source: "App Chat comms", identifier: "card 10a52e37", url: "https://metabase.zoca.ai/public/question/10a52e37-04fa-4422-b840-803b66e033bf.csv" },
+      { source: "Email comms", identifier: "card 7a5aa1f6", url: "https://metabase.zoca.ai/public/question/7a5aa1f6-9205-4e83-be51-3e585aa0f4a8.csv" },
+      { source: "Phone-call comms", identifier: "card 60797a27", url: "https://metabase.zoca.ai/public/question/60797a27-c546-450d-b00b-a51b7e490143.csv" },
+      { source: "Video-call comms", identifier: "card d95d9354", url: "https://metabase.zoca.ai/public/question/d95d9354-7c84-4a57-8af5-e700580c6ecb.csv" },
+      { source: "SMS comms", identifier: "card bbaad2fb", url: "https://metabase.zoca.ai/public/question/bbaad2fb-5f9d-4249-af59-c7812851437c.csv" },
+      { source: "Booking platform CSV", identifier: "card 4d3a953e", url: "https://metabase.zoca.ai/public/question/4d3a953e.csv" },
+      { source: "Business opening date CSV", identifier: "card 8b6f5349", url: "https://metabase.zoca.ai/public/question/8b6f5349.csv" },
+      { source: "Review metrics CSV", identifier: "card 88a7ea2a", url: "https://metabase.zoca.ai/public/question/88a7ea2a.csv" },
+    ],
+    matching_keys: [
+      { key: "Chargebee customer_id ↔ BaseSheet customer_id", usage: "Joins Chargebee customer record to BaseSheet entity row." },
+      { key: "BaseSheet entity_id ↔ comms Entity ID", usage: "Filters all comms feeds to this specific entity." },
+      { key: "Chargebee email ↔ Stripe email", usage: "Matches Chargebee customer to Stripe customer for timestamp reconciliation." },
+    ],
+  };
 }
 
 /**
