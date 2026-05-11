@@ -101,8 +101,12 @@ async function uploadDocxToSlack(args: { buf: Buffer; filename: string; threadTs
   const init = await callSlack("files.getUploadURLExternal", {
     filename: args.filename, length: args.buf.length,
   });
-  // 2. PUT the bytes to that URL
-  const put = await fetch(init.upload_url, { method: "POST", body: args.buf });
+  // 2. PUT the bytes to that URL. Wrap the Buffer in a Uint8Array so the fetch
+  // BodyInit typing is satisfied (Buffer is a Node-only subclass).
+  const put = await fetch(init.upload_url, {
+    method: "POST",
+    body: new Uint8Array(args.buf.buffer, args.buf.byteOffset, args.buf.byteLength),
+  });
   if (!put.ok) throw new Error(`slack upload PUT ${put.status}`);
   // 3. Complete the upload, attaching to the channel/thread
   const done = await callSlack("files.completeUploadExternal", {
