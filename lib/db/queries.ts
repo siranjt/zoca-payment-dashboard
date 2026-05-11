@@ -54,7 +54,14 @@ if (!CONNECTION_URL) {
 // neon() returns a tagged template function. With `fullResults: true` it
 // returns `{ rows, rowCount, ... }` matching @vercel/postgres's shape, so
 // existing destructuring like `const { rows } = await sql\`...\`` works.
-export const sql = neon(CONNECTION_URL, { fullResults: true }) as any;
+//
+// fetchOptions: { cache: "no-store" } — defense-in-depth against any HTTP
+// caching layer (Cloudflare, regional proxies) sitting between Vercel and
+// Neon's compute endpoint. We want every query to hit the database fresh.
+export const sql = neon(CONNECTION_URL, {
+  fullResults: true,
+  fetchOptions: { cache: "no-store" },
+}) as any;
 
 // Export for diag — lets the health endpoint show which hostname we're hitting
 // without leaking credentials.
