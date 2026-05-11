@@ -79,11 +79,23 @@ export async function POST(req: NextRequest, ctx: { params: { customer_id: strin
   // Update DB with the new (same) URL — bumps updated_at, refreshes timestamp.
   // ALSO flip status back to "ready" so the dashboard recovers from any prior
   // "failed" or "processing" stuck state (we have a valid docx now).
+  // ALSO re-extract verdict from reportData.exec — useful when restore-blob
+  // populated fresh reportData and the DB verdict was empty/stale.
+  const execLabel = reportData?.exec?.verdict_label?.toLowerCase()?.replace(/\s+/g, "_") ?? null;
+  const verdictNorm: "icp" | "review" | "not_icp" | null =
+    execLabel === "icp" ? "icp"
+    : execLabel === "review" ? "review"
+    : execLabel === "not_icp" ? "not_icp"
+    : null;
   await setCustomerReport(customerId, {
     report_blob_docx_url: render.docxUrl,
     report_blob_json_url: render.jsonUrl,
     status: "ready",
     failure_reason: null,
+    verdict: verdictNorm,
+    verdict_one_line: reportData?.exec?.driver ?? null,
+    needs_am_call: !!reportData?.exec?.recommended_action_label?.toLowerCase()?.includes("am"),
+    key_flags: reportData?.exec?.reinforcing_flags ? [reportData.exec.reinforcing_flags] : [],
   });
 
   // Optional Slack repost

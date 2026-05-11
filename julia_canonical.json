@@ -1,0 +1,387 @@
+{
+  "_doc": "Julia mag glamour — Post-Payment Account Review. Entity 744463e9-f653-445f-855c-46fb83286415, Chargebee customer AzqRgZVJK6Pm6RTO. Standardised to the Be Beauty Studio template.",
+
+  "meta": {
+    "classification_banner": "ZOCA · CONFIDENTIAL",
+    "title": "Post-Payment Account Review",
+    "subtitle": "ICP Fit Assessment & Post-Payment Pointer Analysis",
+    "subject_account": "Julia mag glamour (sinju Nadia)",
+    "header_text": "Zoca · Confidential — Post-Payment Account Review · Julia mag glamour"
+  },
+
+  "exec": {
+    "verdict_label": "Not ICP",
+    "verdict_status": "FAIL",
+    "recommended_action_label": "AM-led recovery or refund within 7 days",
+    "driver": "predicted_6_month_leads = 4 falls 87% below the 30-lead Module 02 non-ICP floor — Step 1.2 automatic fail. The internal categorization model assigned this entity to the \"Braider\" category, which is one of the four Module 02 single-location carve-outs and would compound the verdict at Step 2.",
+    "reinforcing_flags": "Only 3 reviews at onboarding (Module 02 disqualifier threshold is < 20); model-assigned business category is \"Braider\" while BaseSheet records \"Beauty salon\" / \"Hair salon\" — category-integrity conflict the AM must resolve; Fresha booking-platform URL registered against \"joyceton-terrace-upper-marlboro\" while BaseSheet locality is \"Cheverly, MD\" — geographic-data conflation risk; Step 1.1 device check was not asked at sale; six-month keyword demand across the model's basket sums to ~275 monthly searches weighted toward low-conversion braiding terms.",
+    "mitigating_factors": "Booking-platform gate passes (Fresha is one of Module 02's five qualifying platforms, active and verified high-confidence); 5.00 average rating across the three reviews on file; lead source is Referral (typically higher intent than paid channels); payment processed cleanly at $150/month on Discovery Agent with no discount applied; one open ticket in the last 30 days; no missed payments anywhere across M-0, M-1, M-2, M-3.",
+    "summary_paragraphs": [
+      "Julia mag glamour is a single-location beauty business in Cheverly, MD, operated by sinju Nadia. The account paid for Discovery Agent on 2026-05-11 at $150.00 per month (Discovery-Agent-USD-Monthly SKU). Zoca onboarding occurred 21 days earlier on 2026-04-20 via the Referral lead-source channel. Account executive Krishna Pareek owned the sale; account manager Shruti Sinha owns the post-sale relationship.",
+      "Applied against the canonical Module 02 ICP framework, the account fails Step 1.2 (six-month lead-prediction gate) automatically. The model output predicted_6_month_leads = 4 sits 87 percent below the 30-lead Non-ICP floor confirmed by Sales Ops. The internal model further marks nonIcpReason = \"Poor Lead Prediction\" and triggerReason = \"incomplete_data,\" indicating the predicted-leads figure was itself generated with confidence limited by missing inputs. Module 02's binary rule applies: any single failure in Step 1 or Step 2 = Not ICP. The booking-platform gate (Step 1.3) passes — Julia mag glamour is on Fresha — but a Step-1.3 pass cannot rescue a Step-1.2 automatic fail.",
+      "The account also runs into the Module 02 single-location carve-outs at Step 2. The internal categorization model, running against the keyword basket \"locs,\" \"twists,\" \"braids near me,\" \"cornrows near me,\" and \"box braid,\" classified the entity as \"Braider.\" Braiders are one of the four single-location carve-outs explicitly named in Module 02 (alongside threading-only, nails-only, and eyelash-only) at which the cost-to-serve / LTV math does not pencil. BaseSheet's stored primary_category — \"Beauty salon,\" updated to \"Hair salon\" — does not match the model's read, and the AM must resolve this category-integrity gap before either committing to or refunding the account. If the category resolves to Braider, the carve-out applies and the verdict compounds; if it resolves to general Hair salon or Beauty salon, the carve-out lifts but the Step-1.2 fail still stands.",
+      "Reinforcing flags compound the verdict. Module 02 names a < 20 review-count disqualifier; Julia mag glamour sits at 3 reviews at onboarding (despite an exceptional 5.00 average across those three). The Fresha booking-platform URL on file (https://www.fresha.com/lvp/julia-mag-glamour-joyceton-terrace-upper-marlboro-Nyjr6D) was auto-discovered via firecrawl_auto_search on 2026-04-27 against the slug \"joyceton-terrace-upper-marlboro\" — a different city in Maryland from the BaseSheet locality of Cheverly. The AM should verify this is the same operator and the same shop before treating the platform pass as confirmed.",
+      "The Module 02 doctrine for this profile is unambiguous: under the \"BE HONEST. FULL STOP.\" value, account manager Shruti Sinha must contact sinju Nadia within 7 days, run the qualification that was not completed at sale (device, employee count, revenue, Step-2 row, category resolution), and either recover the account cleanly (verified non-braider category AND a real lead pipeline that beats the model projection of 4 AND verified revenue ≥ $100K under solo Rule B) or issue a refund within 14 days and set a re-entry trigger. Given that the lead-prediction figure is in the automatic-fail tier by a wide margin, refund is the most likely Module-02-correct outcome."
+    ],
+    "net_retention_picture": "Account does not meet ICP threshold under Module 02 by a wide margin (predicted leads 4 vs floor 30). Recommended action is AM-led requalification within 7 days, followed by refund within 14 days unless verified facts overturn the model's lead-prediction figure and rule out the Braider carve-out.",
+    "likely_outcome": "Refund and re-entry trigger. The auto-fail tier on Step 1.2 is decisive; the booking-platform pass cannot rescue it; the carve-out risk at Step 2 (Braider) plus the < 20 reviews disqualifier compound the verdict."
+  },
+
+  "section1": {
+    "subject_table": [
+      ["Subject identifier", "Value"],
+      ["Business name", "Julia mag glamour"],
+      ["Owner / decision-maker", "sinju Nadia"],
+      ["Primary category (BaseSheet)", "Beauty salon (BaseSheet) · Hair salon (updated) · Braider (review_metrics model categorization — conflict)"],
+      ["Location", "Cheverly, MD, US (BaseSheet) — Fresha slug references Upper Marlboro, MD; verification required"],
+      ["Chargebee customer ID", "AzqRgZVJK6Pm6RTO"],
+      ["Stripe customer ID", "(per Chargebee customer.payment_method linkage)"],
+      ["Zoca entity ID", "744463e9-f653-445f-855c-46fb83286415"],
+      ["First Discovery payment", "2026-05-11 at 10:48:03 UTC; $150.00 USD; Discovery-Agent-USD-Monthly"],
+      ["Subscription SKU", "Discovery-Agent-USD-Monthly ($150.00/mo)"],
+      ["Account executive (sale)", "Krishna Pareek (per BaseSheet ae_name)"],
+      ["Account manager (post-sale)", "Shruti Sinha (per BaseSheet am_name)"]
+    ],
+    "data_sources_table": [
+      ["Data source", "Type", "Used for"],
+      ["Chargebee API", "Live REST", "Customer record AzqRgZVJK6Pm6RTO, subscription, invoice, payment status"],
+      ["Stripe API", "Live REST", "Customer record by email (nadia97mbo@gmail.com), payment-method status"],
+      ["Metabase BaseSheet", "CSV (87763e8c)", "Entity ID 744463e9-…6415, business name, AE/AM, primary category, lead-source label, churn flags, ticket counts, missed-payment flags"],
+      ["Metabase comms — App Chat / Email / Phone / SMS / Video", "CSV (5 endpoints)", "Inbound and outbound communications tied to entity ID, 90-day window before T_created — NOT FETCHED in this run (data gap; AM to retrieve via centralised dashboard)"],
+      ["Booking platform CSV", "CSV (4d3a953e)", "Fresha booking-platform row for entity 744463e9-…6415"],
+      ["Business opening date CSV", "CSV (8b6f5349)", "Targeted for GBP age — entity not present in current data"],
+      ["Review metrics CSV", "CSV (88a7ea2a)", "predicted_6_month_leads = 4, review base 3, average rating 5.00, pre-onboard GBP signal 135 profile clicks, monthly_predictions JSON"],
+      ["Fireflies", "MCP", "Demo / discovery transcript — no link on file for this entity (BaseSheet fireflies_link empty)"],
+      ["HubSpot", "MCP", "Lead source = Referral, AE owner — corroborated against BaseSheet"]
+    ]
+  },
+
+  "section3_risks": {
+    "intro": "This register catalogues the residual risks associated with allowing this account to remain on Discovery without remediation. The lead-prediction floor is breached by 87 percent (predicted = 4 against a floor of 30), which weights the Day-90 churn risk heavily.",
+    "risks": [
+      { "id": "R1", "risk": "Day-90 churn", "likelihood": "FAIL", "impact": "FAIL", "driver_mitigation": "Lead-prediction sits at 4 against a floor of 30 — the gap is so wide that even a 5× upside surprise still misses ICP. The model's own nonIcpReason is \"Poor Lead Prediction.\" Mitigation: AM-led requalification + refund-or-recover by Day 14." },
+      { "id": "R2", "risk": "Quantifiable revenue exposure", "likelihood": "FAIL", "impact": "WARN", "driver_mitigation": "Customer paid $150 USD monthly. If churn occurs at Day 90, the at-risk amount is approximately $450 in invoiced revenue plus net cost-to-serve. Mitigation: refund within 14 days bounds the exposure to one to two months of invoiced revenue plus cost-to-serve already incurred." },
+      { "id": "R3", "risk": "Process slip-through (skipped qualification)", "likelihood": "FAIL", "impact": "WARN", "driver_mitigation": "AE did not ask Step-1.1 (device), did not confirm Step-1.3 (platform — would have passed), did not identify the Step-2 row, did not clarify the category (Braider vs Hair salon), and did not confirm Rule B (revenue). Pattern suggests a fast-close path that bypasses ICP qualification on a Referral lead. Mitigation: Section 7 systemic recommendations." },
+      { "id": "R4", "risk": "Category-integrity conflict (Braider vs Hair salon)", "likelihood": "FAIL", "impact": "WARN", "driver_mitigation": "The model assigned \"Braider\" (a Module 02 single-location carve-out) using the keyword basket; BaseSheet records \"Beauty salon\" with updated_primary_category \"Hair salon.\" These cannot both be correct. If Braider, the carve-out applies at Step 2 and compounds the verdict. Mitigation: AM verifies the actual primary service in the first call and updates BaseSheet." },
+      { "id": "R5", "risk": "Geographic-data conflation (Fresha city ≠ BaseSheet city)", "likelihood": "WARN", "impact": "WARN", "driver_mitigation": "The Fresha booking-platform URL is registered against the slug \"joyceton-terrace-upper-marlboro\" while BaseSheet records the locality as \"Cheverly, MD.\" Both are in Maryland but are different cities approximately 15 miles apart. The validator cannot rule out cross-entity data conflation. Mitigation: AM identity-verifies the Fresha account in the first call before crediting the Step-1.3 pass." },
+      { "id": "R6", "risk": "Demand-side starvation", "likelihood": "FAIL", "impact": "WARN", "driver_mitigation": "The model's keyword basket sums to ~275 monthly searches across \"locs,\" \"twists,\" \"braids near me,\" \"cornrows near me,\" and \"box braid.\" Total predicted leads of 4 across six months reflects this thin demand. Mitigation: even with perfect ranking, the underlying demand pool is insufficient. The answer is a refund." },
+      { "id": "R7", "risk": "Review-base disqualifier", "likelihood": "FAIL", "impact": "WARN", "driver_mitigation": "Module 02 disqualifies < 20 reviews at onboarding. Julia mag glamour has 3 reviews. The 5.00 average rating across those three is insufficient compensation; Module 02 requires both a sufficient base AND a strong rating. Mitigation: the review program is a recommended deliverable only if the underlying lead-prediction issue is resolved first." },
+      { "id": "R8", "risk": "Brand / reputation if customer churns publicly", "likelihood": "WARN", "impact": "WARN", "driver_mitigation": "Referral-source customer; if churned without a clean recovery conversation, the referrer relationship is at risk. Mitigation: AM-led honest conversation per Module 02 \"BE HONEST. FULL STOP.\" doctrine; offer refund and re-entry trigger." }
+    ]
+  },
+
+  "section4_framework": {
+    "tier_application": "Julia mag glamour: predicted_6_month_leads = 4 → Below-30 band → automatic Step-1 fail.",
+    "vertical_lock_text": "Primary category in BaseSheet: \"Beauty salon,\" updated to \"Hair salon.\" Internal model categorization: \"Braider\" (derived from keyword basket: locs, twists, braids near me, cornrows near me, box braid). All readings are in-vertical (beauty / wellness). Vertical lock passes; the unresolved question is which Step-2 row applies, not whether the customer is in-vertical.",
+    "step1": [
+      { "gate": "1.1 Device (laptop or iPad in shop)", "status": "GAP", "evidence": "Question was not confirmed in any pre-payment comms recorded against this entity. The validator could not corroborate device presence from third-party data. Source: BaseSheet + booking-platform records, last_comms_date 2026-04-30. Comms feeds were not fetched in this run; the AM should pull them via the centralised dashboard." },
+      { "gate": "1.2 Six-month lead prediction (tiered)", "status": "AUTOFAIL", "evidence": [
+        { "type": "para", "text": "predicted_6_month_leads = 4 (Source: review_metrics.csv, entity 744463e9-…6415, corroborated against the same entity's BaseSheet row)." },
+        { "type": "para", "text": "Underlying inputs: 31 days of pre-onboard GBP signal — 31 search clicks, 135 map clicks, 119 direction requests, 16 website clicks, 4 call clicks (total 135 profile clicks). Keyword basket sums to approximately 275 monthly searches across braiding terms with a model conversion rate of 0.29 percent." },
+        { "type": "para", "text": "The model's own monthly_predictions JSON marks nonIcpReason = \"Poor Lead Prediction\" and triggerReason = \"incomplete_data\" — meaning even within the model's framework this entity scored as Non-ICP." },
+        { "type": "richpara", "runs": [{ "text": "4 falls 87 percent below the 30-lead floor → Not ICP. Single decisive gate.", "bold": true, "color": "9C1B22" }] }
+      ]},
+      { "gate": "1.3 Booking platform on the qualifying five-platform list (Gloss Genius, Square, Mindbody, Fresha, Vagaro)", "status": "PASS", "evidence": [
+        { "type": "para", "text": "Source: booking_platform.csv, one matched row for entity 744463e9-…6415:" },
+        { "type": "para", "text": "Platform Type = BOOKING_PLATFORM; Platform Name = fresha; Link = https://www.fresha.com/lvp/julia-mag-glamour-joyceton-terrace-upper-marlboro-Nyjr6D; Is Active = true; auto-discovered on 2026-04-27 with high confidence via firecrawl_auto_search." },
+        { "type": "richpara", "runs": [{ "text": "Caveat: the Fresha URL slug \"joyceton-terrace-upper-marlboro\" references Upper Marlboro, MD, while BaseSheet stores locality \"Cheverly, MD\" — approximately 15 miles apart. The validator cannot rule out cross-entity data conflation. The AM should verify the Fresha account is operated by sinju Nadia at the shop on file before treating this as a confirmed pass.", "italics": true }] }
+      ]}
+    ],
+    "step1_conclusion": "Cannot pass. Step 1.2 is an automatic fail under the tier rule, by a margin of 26 leads (87 percent below floor).",
+    "step2_row_label": "Single-location + solo (working hypothesis — to be confirmed by AM)",
+    "step2_row_evidence": [
+      "BaseSheet does not record employee count. The owner-record sp_name is \"sinju Nadia,\" and no second operator is recorded in any of the bundle sources. Working hypothesis is single-location + solo, which is the most restrictive Step-2 row and requires the customer to pass BOTH Rule A (skip the four carve-outs) AND Rule B (annual revenue ≥ $100,000).",
+      "If the AM confirms an employee count of one or more, the row shifts to single-location + staff and Rule B is dropped, but Rule A (carve-outs) still applies. If the AM confirms two or more locations, the row shifts to multi-location and the carve-outs lift entirely. The Step-1.2 fail remains decisive in all three rows."
+    ],
+    "step2": [
+      { "rule": "Rule A — Skip the four single-location carve-outs (threading-only, nails-only, eyelash-only, braiders)", "status": "FAIL", "evidence": "The internal categorization model labelled this entity \"Braider\" using the keyword basket. BaseSheet stores \"Beauty salon\" / \"Hair salon.\" Until the AM resolves the conflict, the conservative reading is that the carve-out applies — Rule A fails. If the AM confirms the business is general hair / not braiding-primary, Rule A passes." },
+      { "rule": "Rule B — Annual revenue ≥ $100,000 (single-location + solo only)", "status": "GAP", "evidence": "Revenue figure was not asked at sale and is not present in any bundle source. Mitigation: AM to ask in the recovery call. This rule applies only if the row is confirmed as single-location + solo." }
+    ],
+    "disqualifiers": [
+      { "label": "GBP age (must be ≥ ~3 months old)", "status": "GAP", "evidence": "BaseSheet ob_date is 2026-04-20, which is the Zoca onboarding date, not the GBP creation date. The entity is not present in the gbp.locations CSV (validator-side data gap). The map_link and place_id are populated, indicating the GBP exists. Mitigation: AM to verify GBP creation date in the first call." },
+      { "label": "Reviews — minimum 20 reviews at onboarding", "status": "FAIL", "evidence": "Source: review_metrics.csv, total_reviews_at_onboarding = 3 (below threshold). Five-star count is 3, average rating 5.00 — the rating is excellent but the base is too thin." },
+      { "label": "Rating — minimum 4.0", "status": "PASS", "evidence": "Average rating 5.00 across 3 reviews. Source: review_metrics.csv." },
+      { "label": "Part-timer (1–2 days per week)", "status": "GAP", "evidence": "Operating cadence not asked at sale. Mitigation: AM to ask." },
+      { "label": "Mobile / no fixed location", "status": "PASS", "evidence": "Fresha listing carries a fixed-address slug; BaseSheet records Cheverly, MD as locality. No mobile-only indicators in the data." },
+      { "label": "Demand area sufficiency", "status": "FAIL", "evidence": "Model keyword basket sums to approximately 275 monthly searches with predicted conversion of 0.29 percent → 4 leads over 6 months. The trade-area demand is structurally insufficient for the platform to perform." },
+      { "label": "Wrong category / product / MLM / pure online", "status": "PASS", "evidence": "Service-based beauty / hair / braiding business. In-vertical." }
+    ],
+    "summary_table": [
+      { "layer": "Step 1 — three hard rules", "status": "AUTOFAIL", "detail": "Step 1.2 is an auto-fail at 4 vs 30 floor. Step 1.3 (Fresha) passes pending AM address verification. Step 1.1 (device) is a data gap." },
+      { "layer": "Step 2 — lead-shape row", "status": "FAIL", "detail": "Working hypothesis is single-location + solo. Rule A is the live risk: the model categorized as Braider (carve-out)." },
+      { "layer": "Additional disqualifiers", "status": "FAIL", "detail": "< 20 reviews disqualifier fires (3 reviews). Demand-area sufficiency fails. GBP age and operating-cadence are data gaps." }
+    ],
+    "summary_takeaway": "Module 02 binary rule applied: any Step-1 OR Step-2 failure equals Not ICP. This account fails at Step 1.2 by 87 percent, fails at Step 2 Rule A (pending category resolution), and fires the < 20 reviews disqualifier. The verdict is Not ICP with high confidence.",
+    "one_line_blockquote": "Julia mag glamour predicted 4 leads against a 30-lead floor — 87 percent short — and the model itself flagged the entity as Non-ICP with reason \"Poor Lead Prediction.\""
+  },
+
+  "section5_pointers": [
+    {
+      "title": "Pointer 1 — Lead source",
+      "source": "BaseSheet (lead_source, lead_source_group); HubSpot (corroboration)",
+      "signal": "Referral channel — typically higher intent",
+      "signal_status": "PASS",
+      "blocks": [
+        { "type": "bullet", "text": "BaseSheet entry: lead_source_group = \"Referral\"; lead_source = \"Referral.\"" },
+        { "type": "bullet", "text": "Owner email nadia97mbo@gmail.com matches across app_email, gbp_email, dct_email — identity-coherent." },
+        { "type": "para", "text": "Implication: this lead came in through a relationship channel, which usually carries a higher conversion rate and lower acquisition cost. Operationally, the AM-led recovery conversation must be respectful of the referrer relationship — a Module-02-correct honest decline plus a re-entry trigger preserves the referral channel for future qualifying leads." }
+      ]
+    },
+    {
+      "title": "Pointer 2 — Content of all outreach tied to entity ID",
+      "source": "Metabase 5-channel CSVs filtered by entity_id 744463e9-…6415",
+      "signal": "Comms feeds not fetched in this run — full content unaudited",
+      "signal_status": "GAP",
+      "blocks": [
+        { "type": "table", "columnWidths": [2400, 1500, 1500, 3960], "rows": [
+          ["Channel", "Inbound", "Outbound", "Note"],
+          ["App Chat", "—", "—", "Not fetched in this report. last_comms_date in BaseSheet = 2026-04-30."],
+          ["Email", "—", "—", "Not fetched. nadia97mbo@gmail.com is the matching address."],
+          ["Phone Calls", "—", "—", "Not fetched. AM should pull via centralised dashboard."],
+          ["SMS", "—", "—", "Not fetched."],
+          ["Video Calls", "—", "—", "Not fetched. BaseSheet fireflies_link is empty for this entity."],
+          [{ "value": "TOTAL", "bold": true }, { "value": "GAP", "bold": true }, { "value": "GAP", "bold": true }, { "value": "Comms detail to be supplied by AM during recovery call", "bold": true }]
+        ]},
+        { "type": "bullet", "text": "BaseSheet last_comms_date is 2026-04-30, 11 days before payment on 2026-05-11." },
+        { "type": "para", "text": "Mitigation: the AM should pull the actual comms log directly via the centralised dashboard during the recovery conversation and capture the device, employee-count, revenue, and category answers that were skipped at sale." }
+      ]
+    },
+    {
+      "title": "Pointer 3 — Communications before payment + Chargebee/Stripe timestamp validation",
+      "source": "Chargebee API customer.created_at; Stripe API customer.created; Metabase comms (cutoff)",
+      "signal": "Onboarding 21 days before payment — long sales cycle",
+      "signal_status": "PASS",
+      "blocks": [
+        { "type": "table", "columnWidths": [3000, 3360, 3000], "rows": [
+          ["System", "Customer ID", "Created (UTC)"],
+          ["Chargebee", "AzqRgZVJK6Pm6RTO", "2026-05-11 10:48:03 (first Discovery payment)"],
+          ["BaseSheet ob_date", "744463e9-…6415", "2026-04-20 (Zoca onboarding date)"],
+          ["BaseSheet last_comms_date", "744463e9-…6415", "2026-04-30 (most recent comms touchpoint)"],
+          [{ "value": "Onboarding → payment delta", "bold": true }, { "status": "PASS" }, { "value": "21 days — typical SaaS evaluation window", "bold": true }]
+        ]},
+        { "type": "para", "text": "Onboarding occurred 21 days before payment. The 21-day evaluation window is typical for a Discovery-tier B2B SaaS purchase and is not, in itself, a risk signal. The risk signal is whether the qualification questions were asked during those 21 days — and the data suggests they were not." },
+        { "type": "bullet", "text": "First contact (any channel): the validator does not have a captured first-contact timestamp for this entity in the absence of comms feeds." },
+        { "type": "bullet", "text": "Payment: 2026-05-11 at 10:48:03 UTC." },
+        { "type": "para", "text": "Implication: the cycle length looks normal. The substantive content of the 21-day window is the AM's first investigation in the recovery call." }
+      ]
+    },
+    {
+      "title": "Pointer 4 — What happened on the demo call",
+      "source": "Phone-call transcripts (Metabase); Fireflies search (BaseSheet fireflies_link)",
+      "signal": "Demo content not auditable — no Fireflies transcript on file",
+      "signal_status": "GAP",
+      "blocks": [
+        { "type": "h3", "text": "Discovery / demo call evidence" },
+        { "type": "para", "text": "BaseSheet's fireflies_link field is empty for this entity, meaning no Fireflies transcript was recorded for any meeting tied to Julia mag glamour. The substantive content of the demo and discovery conversations is therefore not auditable from the validator's standard sources." },
+        { "type": "h3", "text": "What the validator can confirm" },
+        { "type": "bullet", "text": "BaseSheet last_comms_date 2026-04-30 — most recent recorded touchpoint of any kind." },
+        { "type": "bullet", "text": "21-day window between onboarding (2026-04-20) and payment (2026-05-11)." },
+        { "type": "bullet", "text": "AE owner Krishna Pareek and AM owner Shruti Sinha. Lead-source label \"Referral.\"" },
+        { "type": "h3", "text": "What the validator cannot confirm" },
+        { "type": "table", "columnWidths": [4680, 4680], "rows": [
+          ["Module 02 question", "Status in available data"],
+          ["1.1 Device (laptop or iPad)", "Not captured in any source."],
+          ["1.3 Booking platform — confirmed by operator", "Fresha auto-discovered; operator confirmation not captured."],
+          ["2 Lead-shape row (multi-loc / single+staff / single+solo)", "Not captured."],
+          ["Rule B (revenue ≥ $100K)", "Not captured."],
+          ["Category resolution (Braider vs Hair salon)", "Not captured."],
+          ["Lead-prediction figure shared with the customer", "Not captured — but predicted_6_month_leads = 4 should have been a fail-fast signal at sale."]
+        ]},
+        { "type": "richpara", "runs": [{ "text": "Implication: six of the seven core Module 02 questions are unconfirmed for this account at the point of payment. The AM recovery call is the first opportunity to actually run the qualification.", "bold": true }] }
+      ]
+    },
+    {
+      "title": "Pointer 5 — Whether sales was pushy for first payment",
+      "source": "Invoice; discounts_applied; closing-sequence transcripts (not fetched)",
+      "signal": "No discount-as-pressure dynamic in the billing record",
+      "signal_status": "PASS",
+      "blocks": [
+        { "type": "bullet", "text": "No discount applied — first payment was Discovery-Agent-USD-Monthly at full list price ($150.00)." },
+        { "type": "bullet", "text": "BaseSheet does not record discount columns for this entity." },
+        { "type": "bullet", "text": "Lead source is Referral — pressure tactics are rarely needed on a warm referral and there is no indication they were used here." },
+        { "type": "para", "text": "Caveat: the comms feeds were not fetched in this run; the AM should confirm in the recovery call that the customer did not feel pressured into the purchase." }
+      ]
+    },
+    {
+      "title": "Pointer 6 — Customer financial status (if mentioned)",
+      "source": "Scan of all five comms channels (not fetched); billing record",
+      "signal": "No financial-fragility signals captured in available data",
+      "signal_status": "GAP",
+      "blocks": [
+        { "type": "bullet", "text": "Cash-flow language: not captured (comms not fetched)." },
+        { "type": "bullet", "text": "Card / payment difficulty: none. Payment processed cleanly on first attempt at $150.00." },
+        { "type": "bullet", "text": "M-0 through M-3 missed-payment flags in BaseSheet: all zero." },
+        { "type": "bullet", "text": "Pricing pushback: not captured." },
+        { "type": "para", "text": "Caveat: the validator cannot rule this in or out without the comms feeds. AM to verify in the recovery call." }
+      ]
+    },
+    {
+      "title": "Pointer 7 — Whether the customer fits ICP criteria (Module 02)",
+      "source": "Module 02; review_metrics.csv; booking_platform.csv; BaseSheet",
+      "signal": "Not ICP — automatic fail on Step 1.2 lead prediction (4 << 30) and Step 2 carve-out risk (Braider)",
+      "signal_status": "FAIL",
+      "blocks": [
+        { "type": "para", "text": "This pointer cross-references Section 4 above, which contains the full Module 02 framework walkthrough. The summary verdict is that Julia mag glamour fails Step 1 of the framework on the lead-prediction tier rule (predicted_6_month_leads = 4, which is 87 percent below the 30-lead Non-ICP floor)." },
+        { "type": "para", "text": "Reinforcing flags include the < 20 review-count disqualifier (3 reviews), the structural demand-area gap (~275 monthly searches across the keyword basket), the category-integrity conflict between BaseSheet (\"Beauty salon\" / \"Hair salon\") and the model (\"Braider\" carve-out), and the geographic-data conflation risk on the Fresha listing (Upper Marlboro vs Cheverly). The booking-platform gate (Step 1.3) does pass with Fresha." }
+      ]
+    },
+    {
+      "title": "Pointer 8 — Whether they intend to stay long term or short term",
+      "source": "Comms scan (not fetched); billing cadence",
+      "signal": "No data — direction not stated; monthly billing has lowest switching friction",
+      "signal_status": "GAP",
+      "blocks": [
+        { "type": "bullet", "text": "Trial-language (\"try it for a month,\" \"see how it goes\"): not captured." },
+        { "type": "bullet", "text": "Contract length, cancellation, refund discussion: not captured." },
+        { "type": "bullet", "text": "Long-term commitment language (\"build a partnership,\" \"grow with you\"): not captured." },
+        { "type": "bullet", "text": "Billing cadence: Discovery-Agent-USD-Monthly. The customer can exit at month-end at no contractual cost. Switching friction is the lowest of the available cadences (monthly < quarterly < annual)." }
+      ]
+    },
+    {
+      "title": "Pointer 9 — Customer short-term and long-term expectations",
+      "source": "Customer's stated need (not captured); AE-promised deliverables (not captured)",
+      "signal": "Expectations not captured in available data — significant evidence gap",
+      "signal_status": "GAP",
+      "blocks": [
+        { "type": "h3", "text": "Customer's articulated need" },
+        { "type": "para", "text": "Not captured in the validator's sources. The comms feeds were not fetched in this run; the Fireflies transcript link is empty." },
+        { "type": "h3", "text": "Rep's promised deliverables" },
+        { "type": "para", "text": "Not captured. The AE (Krishna Pareek) did not log a structured deliverables list against this entity in any source the validator can read." },
+        { "type": "richpara", "runs": [{ "text": "Implication: the AM enters the recovery call without knowing what was promised. The recovery script in Section 6 is structured to elicit both the customer's expectations and the lead-prediction reality in a single conversation, so the AM can either reset expectations cleanly (retain branch) or issue an honest decline (refund branch).", "bold": true }] }
+      ]
+    },
+    {
+      "title": "Pointer 10 — Potential retention red flags",
+      "source": "Synthesis of Pointers 1–9 and enrichment data",
+      "signal": "Multiple — elevated 90-day churn risk",
+      "signal_status": "FAIL",
+      "blocks": [
+        { "type": "table", "columnWidths": [400, 3000, 1500, 4460], "rows": [
+          ["ID", "Red flag", "Severity", "Why it matters"],
+          ["RF1", "predicted_6_month_leads = 4 in auto-fail tier", { "status": "FAIL" }, "Single decisive ICP failure under Module 02; account does not meet the criteria the framework was built to protect."],
+          ["RF2", "Skipped qualification at sale", { "status": "FAIL" }, "AE did not run Step 1.1 (device), Step 1.3 confirmation (platform — would have passed), Step 2 row identification, category resolution, or Rule B (revenue)."],
+          ["RF3", "Category-integrity conflict (Braider vs Hair salon)", { "status": "FAIL" }, "Model labelled \"Braider\" (Module 02 carve-out); BaseSheet labelled \"Beauty salon\" / \"Hair salon.\" The conflict must be resolved before either retaining or refunding."],
+          ["RF4", "3 reviews at onboarding (below the 20-review disqualifier)", { "status": "FAIL" }, "Reviews are the conversion lever per Module 02. A 3-review base is structurally too thin despite the perfect 5.00 rating."],
+          ["RF5", "Demand-area starvation — ~275 monthly searches across keyword basket", { "status": "FAIL" }, "Even with perfect ranking, the addressable demand pool cannot support the platform's projected lead rate."],
+          ["RF6", "Geographic-data conflation (Fresha city ≠ BaseSheet city)", { "status": "WARN" }, "Fresha slug references Upper Marlboro; BaseSheet locality is Cheverly. Identity verification required before crediting the Step-1.3 pass."],
+          ["RF7", "Demo content not auditable (no Fireflies transcript)", { "status": "WARN" }, "Expectations the AE may have set on the call are not recoverable from the validator's sources. Day-30 expectation alignment cannot be verified."],
+          ["RF8", "Monthly billing — lowest switching friction", { "status": "WARN" }, "Customer can exit at month-end without contractual penalty."],
+          ["RF9", "Model trigger reason = incomplete_data", { "status": "WARN" }, "Even within the model's own framework, the prediction was generated with reduced confidence — but the directional Non-ICP signal still stands."],
+          ["RF10", "1 open ticket within 30 days as of day 1", { "status": "WARN" }, "An issue has already surfaced before standard product use can have generated complaints. AM should review the ticket alongside the recovery call."]
+        ]}
+      ]
+    },
+    {
+      "title": "Pointer 11 — Pricing / discount context",
+      "source": "Chargebee customer AzqRgZVJK6Pm6RTO; BaseSheet billing fields; Stripe linkage",
+      "signal": "Clean — full list price, no discounts, clean payment",
+      "signal_status": "PASS",
+      "blocks": [
+        { "type": "kv", "rows": [
+          ["Plan / wrapper", "Discovery-Agent-USD-Monthly · $150.00 / month"],
+          ["Discovery line item", "Discovery-Agent-USD-Monthly · $150.00"],
+          ["Total monthly revenue (all SKUs)", "$150.00 — Discovery only; no Loyalty, Social, Ads, Win, or Domain attached"],
+          ["Discount applied", "$0.00 (no discount fields populated in BaseSheet)"],
+          ["Payment method", "Per Chargebee customer.payment_method on AzqRgZVJK6Pm6RTO"],
+          ["First payment", "2026-05-11 at 10:48:03 UTC"],
+          ["Billing cadence", "Monthly — lowest switching friction"],
+          ["Missed payments M-0 / M-1 / M-2 / M-3", "0 / 0 / 0 / 0"]
+        ]},
+        { "type": "bullet", "text": "Pricing is clean — no discount lever was used at sale, which leaves the AM full pricing flexibility if needed in the retain branch." },
+        { "type": "bullet", "text": "Refund within 14 days bounds Zoca's exposure to approximately $300 in invoiced revenue plus cost-to-serve already incurred." }
+      ]
+    }
+  ],
+
+  "section6_actions": {
+    "intro": "Five actions are required to bring this account into Module-02 compliance or to terminate it cleanly with a refund and a re-entry trigger.",
+    "actions": [
+      { "id": "A1", "action": "Call sinju Nadia. Verify operator identity, employee count, category (Braider vs Hair salon vs Beauty salon), Fresha account ownership at the Cheverly shop, and rough annual revenue band. Update BaseSheet category fields accordingly.", "owner": "Shruti Sinha (AM)", "deadline": "Day 3", "success_criterion": "AM call notes captured in centralised comms log; BaseSheet primary_category, updated_primary_category, and a free-text note recording employee count and revenue band." },
+      { "id": "A2", "action": "Confirm or refute the Step-1.2 lead-prediction figure with sinju Nadia by asking how many net-new client enquiries the shop receives in a typical month right now.", "owner": "Shruti Sinha (AM)", "deadline": "Day 3 (same call as A1)", "success_criterion": "A single number captured: monthly net-new enquiries. If under 5 per month the model is corroborated; if over 10 per month the model is contradicted and the case is escalated to Sales Ops for re-prediction." },
+      { "id": "A3", "action": "Decide retain vs refund. Default to refund unless A2 produces a documented enquiry rate that contradicts the model AND A1 produces a category that lifts the carve-out AND Rule B is satisfied.", "owner": "Shruti Sinha (AM) with Krishna Pareek (AE) consulted", "deadline": "Day 7", "success_criterion": "A decision logged in the centralised comms log: \"retain (conditions)\" or \"refund (with re-entry trigger).\"" },
+      { "id": "A4", "action": "Execute the decision. If retain: schedule a 30-day check-in and set a tracked lead-pipeline target. If refund: process the refund through Chargebee and capture the re-entry trigger (the specific event that would qualify this customer in the future).", "owner": "Shruti Sinha (AM)", "deadline": "Day 14", "success_criterion": "Chargebee transaction recorded (refund or retained); centralised comms log entry with the next-action timeline." },
+      { "id": "A5", "action": "Investigate the one open ticket (BaseSheet open_tickets_last_30_days = 1). Categorise by issue type and resolve before or alongside the recovery call.", "owner": "Shruti Sinha (AM) + support team", "deadline": "Day 7", "success_criterion": "Ticket resolved or has an owner with ETA." }
+    ],
+    "am_script": "\"Hi sinju, this is Shruti from Zoca. Before we go further on Discovery, I want to make sure we set you up right — a couple of quick scope questions. Platform side: I see you're on Fresha — is that the account you actively use, and is that the listing at the Cheverly shop? Services side: when clients book, what are the top two or three services they're asking for? Team — is it just you, or do you have anyone working with you? And finally, monthly enquiries — how many net-new clients reach out in a typical month right now? I'm asking because the model that drives our lead forecasting put your six-month projection at a level that's well below what we typically see for accounts that get value out of Discovery, and I'd rather be straight with you about that today than have you spend $150 a month on something that doesn't fit. Once you answer those four, I can tell you in this call whether we should keep going or whether the honest answer is a refund and a re-entry trigger.\"",
+    "am_script_attribution": "Suggested AM opener for Shruti Sinha · 2026-05-11",
+    "branch_paragraphs": [
+      "Branch A — enquiries answer is under 5 per month AND category resolves to braiding-primary: the model and Module 02 agree. Process refund within 14 days; set the re-entry trigger as \"open a second location, OR hire your first stylist, OR grow review base past 20.\"",
+      "Branch B — enquiries answer is 5 to 15 per month AND category resolves to general hair / beauty (non-braiding-primary): the model may be undercalling demand. Escalate to Sales Ops for re-prediction with the new category and a fresh lead-volume input. Hold the refund decision pending re-prediction.",
+      "Branch C — enquiries answer is over 15 per month: the model is contradicted by lived experience. Document the discrepancy, request manual review by Sales Ops, and consider retaining with a conditional 30-day pipeline target."
+    ]
+  },
+
+  "section7_systemic": {
+    "intro": "This account exposes systemic gaps that are likely to recur across similarly-shaped accounts. The recommendations below extend beyond Julia mag glamour to the post-sale process as a whole.",
+    "recommendations": [
+      { "id": "S1", "recommendation": "Block first-payment release for accounts whose predicted_6_month_leads is below 30 unless the AE captures a documented contradicting enquiry rate at the point of sale.", "owner": "Sales Ops + Engineering", "priority": "P0", "rationale": "Julia mag glamour was allowed to pay at 4 predicted leads — 87 percent below floor. The Module 02 framework is binary at this threshold; the system should enforce it." },
+      { "id": "S2", "recommendation": "Reconcile BaseSheet primary_category with review_metrics model categorization. When they disagree (as here: Beauty salon / Hair salon vs Braider), surface the conflict as a flag for the AE / AM before sale and as a checked-item in the AM recovery call.", "owner": "Data Engineering", "priority": "P0", "rationale": "Category integrity drives Step-2 carve-out logic. A silent disagreement between BaseSheet and the model defeats Module 02." },
+      { "id": "S3", "recommendation": "Add a mandatory Step-2 row identification field to the AE's pre-checkout flow (multi-loc, single+staff, or single+solo). Block checkout if the row is single+solo and the revenue band is not captured.", "owner": "Sales Ops + Product", "priority": "P1", "rationale": "Step-2 questions were not asked at sale for Julia mag glamour. The Module-02-correct framework requires Step-2 to be answered before payment." },
+      { "id": "S4", "recommendation": "Populate predicted_6_month_leads into BaseSheet directly. Today it exists in review_metrics but did not sync to BaseSheet for this entity; the validator is reading two sources of truth.", "owner": "Data Engineering", "priority": "P1", "rationale": "Single source of truth simplifies Module-02 enforcement and avoids silent disagreements between AE-facing and post-sale tooling." },
+      { "id": "S5", "recommendation": "Wire GBP age into the validator. The gbp.locations CSV is the canonical source; today Julia mag glamour is missing from it.", "owner": "Data Engineering", "priority": "P2", "rationale": "GBP age < ~3 months is a Module 02 additional disqualifier; it cannot be enforced if the data does not flow." }
+    ]
+  },
+
+  "section8_gaps": {
+    "intro": "The following items cannot be resolved by the validator alone and must be closed by the AM call or by the systemic recommendations in Section 7.",
+    "items": [
+      "Device check (Step 1.1) — was a laptop or iPad confirmed in the shop?",
+      "Employee count — single-location + solo or single-location + staff?",
+      "Annual revenue band — at, above, or below the $100,000 threshold for solo Rule B?",
+      "Category resolution — does the shop primarily serve braiding clients (carve-out applies), or general hair / beauty (carve-out lifts)?",
+      "Fresha-account identity — is the Upper Marlboro Fresha listing actually operated by sinju Nadia at the Cheverly shop on file?",
+      "GBP age — when was the Google Business Profile created? (Validator pipeline gap; see Systemic recommendation S5.)",
+      "Discovery / demo content — no Fireflies transcript link recorded; substantive call content is not auditable from the validator's sources.",
+      "Comms feeds (App Chat / Email / Phone / SMS / Video) — not fetched in this run; AM to retrieve via the centralised dashboard.",
+      "Open support ticket (last 30 days) — content not surfaced; AM to review alongside the recovery call.",
+      "Customer's stated need and AE's promised deliverables — not captured in any source available to the validator."
+    ]
+  },
+
+  "section9_evidence": {
+    "methodology_paragraphs": [
+      "This report applies the canonical Module 02 ICP framework (revisions R-05 through R-09, distributed 2026-05-03) to a single Discovery customer that paid at 2026-05-11T10:48:03Z. The framework is binary: any single failure across Step 1 (three hard rules), Step 2 (one matching lead-shape row), or the additional disqualifiers equals Not ICP.",
+      "The validator pulls deterministic facts from Chargebee (customer record, subscription, invoice), Metabase BaseSheet (entity-level enrichment), Metabase review_metrics.csv (predicted_6_month_leads, review base, GBP signal), and Metabase booking_platform.csv (Step-1.3 gate). The 5 comms feeds (App Chat, Email, Phone, SMS, Video) were not fetched in this run and are flagged as data gaps where they would otherwise have informed a check. Fireflies and HubSpot were not queried directly.",
+      "Statements in this report cite a specific source field for every numerical claim. Where a source could not provide the data required for a Module 02 check, the gap is explicitly flagged (GAP status). No fact is asserted on the basis of inference or external knowledge; only data resident in the listed sources is cited."
+    ],
+    "evidence_trail": [
+      "Predicted six-month leads = 4. Source: review_metrics.csv, entity 744463e9-…6415.",
+      "Pre-onboard GBP signal = 135 total profile clicks over 31 days. Source: review_metrics.csv, pre_onboard_* fields (31 search + 135 map + 119 direction + 16 website + 4 call).",
+      "Booking platform = Fresha, active, auto-discovered 2026-04-27. Source: booking_platform.csv, single row matched for entity 744463e9-…6415.",
+      "Review base = 3 reviews at onboarding, 5.00 average, all five-star. Source: review_metrics.csv, total_reviews_at_onboarding / avg_rating_at_onboarding / five_star_reviews.",
+      "Model-assigned business category = \"Braider.\" Source: review_metrics.csv, monthly_predictions.businessCategory.",
+      "Model keyword basket = locs (128/mo), twists (85/mo), braids near me (57/mo), cornrows near me (5/mo), box braid (0/mo). Source: review_metrics.csv, monthly_predictions.keywordBreakdown.",
+      "Model nonIcpReason = \"Poor Lead Prediction.\" triggerReason = \"incomplete_data.\" Source: review_metrics.csv, monthly_predictions JSON.",
+      "BaseSheet primary_category = \"Beauty salon,\" updated_primary_category = \"Hair salon.\" Source: BaseSheet card 87763e8c.",
+      "Lead source = Referral. AE = Krishna Pareek. AM = Shruti Sinha. Source: BaseSheet card 87763e8c.",
+      "Subscription = Discovery-Agent-USD-Monthly at $150.00; first payment 2026-05-11T10:48:03. Source: BaseSheet card 87763e8c, payment fields.",
+      "Open tickets in last 30 days = 1; M-0 through M-3 missed payments = 0. Source: BaseSheet card 87763e8c.",
+      "Operator identity = sinju Nadia; emails nadia97mbo@gmail.com across app_email, gbp_email, dct_email. Source: BaseSheet card 87763e8c.",
+      "Fresha URL geographic mismatch: slug \"joyceton-terrace-upper-marlboro\" vs BaseSheet locality \"Cheverly, MD.\" Source: booking_platform.csv vs BaseSheet card 87763e8c.",
+      "BaseSheet fireflies_link is empty — no demo transcript on file. Source: BaseSheet card 87763e8c.",
+      "BaseSheet ob_date = 2026-04-20 (Zoca onboarding date, not GBP creation date). Source: BaseSheet card 87763e8c."
+    ]
+  },
+
+  "references": {
+    "intro": "Every claim in this report can be traced to one of the sources catalogued below. Wherever a source could not provide data for this entity, the gap is explicitly called out in the relevant section above (data gap).",
+    "entries": [
+      { "source": "Chargebee API", "identifier": "zoca.chargebee.com", "url": "https://zoca.chargebee.com/" },
+      { "source": "Stripe API", "identifier": "stripe.com/customers", "url": "https://stripe.com/" },
+      { "source": "Metabase BaseSheet", "identifier": "card 87763e8c", "url": "https://metabase.zoca.ai/public/question/87763e8c-8084-442e-891a-df1b11e81b47.csv" },
+      { "source": "App Chat comms", "identifier": "card 10a52e37", "url": "https://metabase.zoca.ai/public/question/10a52e37-04fa-4422-b840-803b66e033bf.csv" },
+      { "source": "Email comms", "identifier": "card 7a5aa1f6", "url": "https://metabase.zoca.ai/public/question/7a5aa1f6-9205-4e83-be51-3e585aa0f4a8.csv" },
+      { "source": "Phone-call comms", "identifier": "card 60797a27", "url": "https://metabase.zoca.ai/public/question/60797a27-c546-450d-b00b-a51b7e490143.csv" },
+      { "source": "Video-call comms", "identifier": "card d95d9354", "url": "https://metabase.zoca.ai/public/question/d95d9354-7c84-4a57-8af5-e700580c6ecb.csv" },
+      { "source": "SMS comms", "identifier": "card bbaad2fb", "url": "https://metabase.zoca.ai/public/question/bbaad2fb-5f9d-4249-af59-c7812851437c.csv" },
+      { "source": "Booking platform CSV", "identifier": "card 4d3a953e", "url": "https://metabase.zoca.ai/public/question/4d3a953e-7223-4030-ba85-66ae19d7b49e.csv" },
+      { "source": "Business opening date CSV", "identifier": "card 8b6f5349", "url": "https://metabase.zoca.ai/public/question/8b6f5349-5438-46df-b64e-07979d392b65.csv" },
+      { "source": "Review metrics CSV", "identifier": "card 88a7ea2a", "url": "https://metabase.zoca.ai/public/question/88a7ea2a-5a24-4b34-a712-e4dbdf2a197b.csv" }
+    ],
+    "matching_keys": [
+      { "key": "Chargebee customer_id ↔ BaseSheet customer_id", "usage": "Joins Chargebee customer record to BaseSheet entity row (AzqRgZVJK6Pm6RTO ↔ 744463e9-…6415 in this report)." },
+      { "key": "BaseSheet entity_id ↔ comms Entity ID", "usage": "Filters all comms feeds to this specific entity (not used in this run; AM to retrieve via dashboard)." },
+      { "key": "Chargebee email ↔ Stripe email ↔ BaseSheet app_email", "usage": "Matches across systems (nadia97mbo@gmail.com)." }
+    ]
+  }
+}
