@@ -119,6 +119,29 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
                   required: ["verdict_label", "verdict_status", "recommended_action_label", "driver", "reinforcing_flags", "mitigating_factors", "summary_paragraphs", "net_retention_picture", "likely_outcome"],
                   additionalProperties: true,
                 },
+                qualitative_flags: {
+                  type: "object",
+                  description: "Section 2.5 — quick-scan qualitative red flags table. A scannable read of softer signals (price sensitivity, sales urgency, customer engagement, dissatisfaction, commitment posture, operator decisiveness, cross-data integrity, demand-side signal). Rendered as a 3-column table (Signal / Reading / Evidence) between Section 2 and Section 3.",
+                  properties: {
+                    intro: { type: "string", description: "One-paragraph framing — same purpose as Be Beauty / Julia canonical examples." },
+                    flags: {
+                      type: "array",
+                      description: "6-8 qualitative signals. Standard signal set: Price sensitivity, Sales urgency / time pressure, Customer engagement quality, Stated dissatisfaction (pre-pay), Long-term commitment posture, Operator decisiveness, Cross-data integrity, Demand-side signal. Add Demo delivery quality when transcript evidence exists.",
+                      items: {
+                        type: "object",
+                        properties: {
+                          signal: { type: "string", description: "Signal area label, e.g. 'Price sensitivity'." },
+                          reading: { type: "string", enum: ["PASS", "WARN", "FAIL", "GAP"], description: "Status pill color — PASS green, WARN yellow, FAIL red, GAP grey." },
+                          evidence: { type: "string", description: "One-sentence cited evidence with source field references where possible." },
+                        },
+                        required: ["signal", "reading", "evidence"],
+                      },
+                    },
+                    takeaway: { type: "string", description: "One-sentence synthesis of the qualitative read." },
+                  },
+                  required: ["intro", "flags"],
+                  additionalProperties: true,
+                },
                 section3_risks: {
                   type: "object",
                   description: "Quantified risk register — rendered as a 5-column table.",
@@ -352,7 +375,7 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
                 },
               },
               required: [
-                "exec", "section3_risks", "section4_framework",
+                "exec", "qualitative_flags", "section3_risks", "section4_framework",
                 "section5_pointers", "section6_actions", "section7_systemic",
                 "section8_gaps", "section9_evidence",
               ],
@@ -428,10 +451,11 @@ export async function evaluate(args: {
     "```",
     "",
     "INSTRUCTIONS:",
-    "Call the `submit_analysis` tool with the analytical sections of the report. Required sections: exec, section3_risks, section4_framework, section5_pointers, section6_actions, section7_systemic, section8_gaps, section9_evidence.",
+    "Call the `submit_analysis` tool with the analytical sections of the report. Required sections: exec, qualitative_flags, section3_risks, section4_framework, section5_pointers, section6_actions, section7_systemic, section8_gaps, section9_evidence.",
     "NOTE: meta, section1 (subject + sources tables), and references are populated automatically by the system from bundle data — DO NOT include them in your tool call.",
     "STANDARDISATION REQUIREMENT — the output JSON must render to a Word document with the same depth/structure as the canonical examples (Be Beauty Studio and Julia mag glamour). Specifically:",
     "  • exec.summary_paragraphs: 5 substantive paragraphs",
+    "  • qualitative_flags.flags: 6-8 entries with reading PASS/WARN/FAIL/GAP. Always include: Price sensitivity, Sales urgency / time pressure, Customer engagement quality, Stated dissatisfaction (pre-pay), Long-term commitment posture, Operator decisiveness, Cross-data integrity. Add Demand-side signal OR Demo delivery quality when relevant data exists. End with a one-sentence `takeaway`.",
     "  • section3_risks.risks: 5-8 entries with id/risk/likelihood/impact/driver_mitigation",
     "  • section4_framework.step1: EXACTLY 3 gate rows (1.1 Device, 1.2 Lead prediction, 1.3 Booking platform) with status + evidence; evidence MAY be a string OR an array of block objects ({type: 'para'|'richpara', text/runs}) for rich formatting",
     "  • section4_framework.step2: 1-3 rule rows; section4_framework.disqualifiers: 5-7 disqualifier rows; section4_framework.summary_table: 3 layer rows",
