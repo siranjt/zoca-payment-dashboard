@@ -49,7 +49,11 @@ export async function renderAndUpload(args: {
   reportData: any;
   markdown: string;
 }): Promise<RenderResult> {
-  const doc = buildReport(args.reportData);
+  // Cast through `any`: template.js is a .js file (shared with the standalone
+  // validator), and TS's structural type check distinguishes the Document class
+  // it infers from there vs. the one in our local docx import (private-field
+  // identity quirk). Functionally identical class.
+  const doc: any = buildReport(args.reportData);
   const buf = await Packer.toBuffer(doc);
 
   const baseKey = `reports/${args.cbCustomerId}`;

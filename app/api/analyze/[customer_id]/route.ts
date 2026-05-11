@@ -1,33 +1,24 @@
 /**
- * /api/analyze/[customer_id] — full pipeline orchestrator.
+ * Stage 1 of the analyze pipeline — validator + small enrichment.
  *
- * Called by:
- *   - /api/cb-webhook (fire-and-forget) when subscription_created fires for a Discovery sub
- *   - Manual backfill scripts
- *   - Internal admin retry from the dashboard UI
+ * Pipeline (3 stages, each <60s to fit Vercel Hobby cap):
+ *   Stage 1 — /api/analyze/[id]        — CB + Stripe + BaseSheet + 3 small CSVs → DB
+ *   Stage 2 — /api/analyze/[id]/comms   — 5 comms CSVs (parallel)               → Blob
+ *   Stage 3 — /api/analyze/[id]/llm     — Anthropic + docx + Slack              → DB
  *
- * Steps:
- *   1. validator.buildBundle(customer_id)
- *   2. evaluator.evaluate(bundle)        [retries once on JSON-parse fail]
- *   3. render.renderAndUpload()          [docx + JSON + Markdown to Vercel Blob]
- *   4. db.setCustomerReport()            [scope, verdict, blob URLs, status=ready]
- *   5. slack.postCustomerReport()        [verdict + flags + dashboard link + .docx upload]
- *
- * On any step's failure:
- *   - log to events table
- *   - mark status=failed with reason
- *   - if step 2 failed both retries: fall back to Markdown-only Slack post
+ * Each stage fires off the next via fire-and-forget POST after returning 200.
+ * Stage URLs use the same /api/analyze/[id] prefix so they share routing context.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { buildBundle } from "@/lib/validator/bundle";
-import { evaluate } from "@/lib/evaluator/anthropic";
-import { renderAndUpload } from "@/lib/render/render";
-import { postCustomerReport } from "@/lib/slack";
-import { setCustomerReport, setCustomerStatus, logEvent, getCustomer, upsertCustomerStub } from "@/lib/db/queries";
+import { buildBundleLight } from "@/lib/validator/bundle";
+import { saveStageBundle } from "@/lib/stage-store";
+import {
+  setCustomerReport, setCustomerStatus, logEvent, upsertCustomerStub,
+} from "@/lib/db/queries";
 
 export const runtime = "nodejs";
-export const maxDuration = 300; // 5 minutes — comms-CSV downloads + LLM call can take a while
+export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 function pickEntityFields(b: any) {
@@ -72,25 +63,41 @@ function deriveScope(b: any): "discovery_first_pay" | "discovery_addon" | "no_su
   if (b.pre_floor) return "pre_floor";
   if (!b.subscription) return "no_subscription";
   if (!b.discovery_match) return "other_subscription";
-  return "discovery_first_pay"; // first sub IS Discovery
+  return "discovery_first_pay";
 }
 
-export async function POST(_req: NextRequest, ctx: { params: { customer_id: string } }) {
+async function fireAndForget(url: string, body: unknown) {
+  // Trigger next stage. We await the call briefly so the connection establishes,
+  // but the response body is not awaited — the next stage executes independently.
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      // Don't wait for the full response. Next stage runs on its own.
+      signal: AbortSignal.timeout(2000),
+    });
+  } catch {
+    // Expected — the AbortSignal will timeout shortly after the connection is established.
+    // The next stage has been triggered; we just don't wait for it.
+  }
+}
+
+export async function POST(req: NextRequest, ctx: { params: { customer_id: string } }) {
   const customerId = ctx.params.customer_id;
   if (!customerId) return NextResponse.json({ ok: false, error: "missing_customer_id" }, { status: 400 });
 
-  // --- Step 1: build bundle ------------------------------------------------
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${req.headers.get("host")}`;
+
+  // --- Stage 1: build the light bundle (no comms) -------------------------
   let bundle;
   try {
-    bundle = await buildBundle(customerId);
+    bundle = await buildBundleLight(customerId);
   } catch (e: any) {
-    return NextResponse.json({ ok: false, stage: "validator", error: e.message }, { status: 500 });
+    return NextResponse.json({ ok: false, stage: "stage1_validator", error: e.message }, { status: 500 });
   }
 
-  // Now that we have Chargebee customer data, ensure the customers row exists.
-  // /api/analyze can be invoked directly (test / backfill / retry) without a
-  // preceding webhook, so the customers row may not yet be present. Upsert here
-  // so all subsequent logEvent + setCustomerReport calls have a valid row.
+  // Upsert customer row so subsequent calls have a valid FK target
   const cbCustomer = bundle.chargebee_customer ?? {};
   await upsertCustomerStub({
     cb_customer_id: customerId,
@@ -102,12 +109,12 @@ export async function POST(_req: NextRequest, ctx: { params: { customer_id: stri
     cb_channel: cbCustomer.channel ?? undefined,
     cb_payment_method: cbCustomer.payment_method?.type ?? undefined,
   });
-  await logEvent(customerId, "analyze_started", {});
-  await logEvent(customerId, "validator_done", { skip_reason: bundle.skip_reason, comms: bundle.comms_summary });
+  await logEvent(customerId, "stage1_started", {});
 
   const scope = deriveScope(bundle);
+
+  // Out-of-scope: stop here, no further stages
   if (scope !== "discovery_first_pay") {
-    // Out of scope — stamp the row and exit. No LLM call, no docx, no Slack.
     await setCustomerReport(customerId, {
       scope,
       stripe_customer_id: bundle.stripe_customer?.id ?? null,
@@ -127,41 +134,7 @@ export async function POST(_req: NextRequest, ctx: { params: { customer_id: stri
     return NextResponse.json({ ok: true, status: "out_of_scope", reason: bundle.skip_reason });
   }
 
-  // --- Step 2: LLM evaluation ---------------------------------------------
-  let evalResult;
-  try {
-    evalResult = await evaluate({ bundle });
-    await logEvent(customerId, "llm_eval_done", { markdown_chars: evalResult.markdown.length });
-  } catch (e: any) {
-    // Fallback: post Markdown-only summary if available, mark report failed.
-    await setCustomerStatus(customerId, "failed", `evaluator: ${e.message}`);
-    await logEvent(customerId, "failure", { stage: "evaluator", error: e.message });
-    return NextResponse.json({ ok: false, stage: "evaluator", error: e.message }, { status: 500 });
-  }
-
-  // --- Step 3: render docx + upload to blob -------------------------------
-  let render;
-  try {
-    render = await renderAndUpload({ cbCustomerId: customerId, reportData: evalResult.reportData, markdown: evalResult.markdown });
-    await logEvent(customerId, "docx_rendered", { bytes: render.bytes });
-  } catch (e: any) {
-    // Don't hard-fail — we can still post Markdown to Slack
-    console.error("[analyze] render failed:", e.message);
-    render = null;
-    await logEvent(customerId, "render_failed", { error: e.message });
-  }
-
-  // --- Step 4: persist to DB ----------------------------------------------
-  const verdict = evalResult.reportData?.exec?.verdict_label?.toLowerCase()?.replace(/\s+/g, "_") ?? null;
-  const verdictNorm: "icp" | "review" | "not_icp" | null =
-    verdict === "icp" ? "icp"
-    : verdict === "review" ? "review"
-    : verdict === "not_icp" ? "not_icp"
-    : null;
-  const keyFlags: string[] = (evalResult.reportData?.exec?.reinforcing_flags
-    ? [evalResult.reportData.exec.reinforcing_flags]
-    : []) as string[];
-
+  // In-scope: persist everything from stage 1 and save bundle to Blob
   await setCustomerReport(customerId, {
     scope,
     stripe_customer_id: bundle.stripe_customer?.id ?? null,
@@ -177,42 +150,15 @@ export async function POST(_req: NextRequest, ctx: { params: { customer_id: stri
     ...pickEntityFields(bundle),
     ...pickReviewFields(bundle.review_metrics),
     ...pickBookingFields(bundle.booking_platform_rows),
-    verdict: verdictNorm,
-    needs_am_call: !!evalResult.reportData?.exec?.recommended_action_label?.toLowerCase()?.includes("am"),
-    verdict_one_line: evalResult.reportData?.exec?.driver ?? null,
-    key_flags: keyFlags,
-    report_blob_docx_url: render?.docxUrl ?? null,
-    report_blob_json_url: render?.jsonUrl ?? null,
-    report_blob_md_url: render?.mdUrl ?? null,
-    status: "ready",
-    failure_reason: null,
+    status: "processing",
   });
 
-  // --- Step 5: Slack post -------------------------------------------------
-  try {
-    const cust = await getCustomer(customerId);
-    const slackRes = await postCustomerReport({
-      cbCustomerId: customerId,
-      bizName: cust?.biz_name ?? null,
-      amName: cust?.am_name ?? null,
-      verdict: verdictNorm,
-      needsAmCall: !!cust?.needs_am_call,
-      oneLine: cust?.verdict_one_line ?? null,
-      keyFlags,
-      markdown: evalResult.markdown,
-      docxBlobUrl: render?.docxUrl ?? null,
-    });
-    if (slackRes.ts) {
-      await setCustomerReport(customerId, {
-        slack_channel_id: process.env.SLACK_CHANNEL_ID ?? null,
-        slack_ts: slackRes.ts,
-      });
-    }
-    await logEvent(customerId, "slack_posted", { ts: slackRes.ts ?? null, posted: slackRes.posted, file_url: slackRes.fileUrl });
-  } catch (e: any) {
-    console.error("[analyze] slack post failed:", e.message);
-    await logEvent(customerId, "slack_failed", { error: e.message });
-  }
+  // Save bundle so Stage 2 can read it instead of re-fetching all the enrichment
+  const bundleUrl = await saveStageBundle(customerId, bundle);
+  await logEvent(customerId, "stage1_done", { bundle_url: bundleUrl });
 
-  return NextResponse.json({ ok: true, status: "ready" });
+  // Fire-and-forget Stage 2
+  await fireAndForget(`${baseUrl}/api/analyze/${customerId}/comms`, { bundle_url: bundleUrl });
+
+  return NextResponse.json({ ok: true, status: "stage1_done", next: "comms" });
 }

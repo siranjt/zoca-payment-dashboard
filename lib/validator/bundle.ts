@@ -46,7 +46,25 @@ const DISCOVERY_PATTERN = (process.env.DISCOVERY_FILTER_PATTERN ?? "discovery").
 const COMMS_WINDOW_DAYS = Number(process.env.COMMS_WINDOW_DAYS ?? 90);
 const TIMESTAMP_MISMATCH_HOURS = Number(process.env.TIMESTAMP_MISMATCH_HOURS ?? 24);
 
+/**
+ * Build the "light" half of the bundle — everything except the 5 comms CSVs.
+ * Designed to complete in <40s on Vercel Hobby (60s function cap).
+ * Returns a partial bundle with empty `comms` / `comms_summary`. Stage 2 fills
+ * those in.
+ */
+export async function buildBundleLight(customerId: string): Promise<Bundle> {
+  return buildBundleInternal(customerId, /* includeComms */ false);
+}
+
+/**
+ * Full bundle build — kept for backfill / single-shot scripts that don't care
+ * about function-timeout limits. Production webhook flow uses the staged path.
+ */
 export async function buildBundle(customerId: string): Promise<Bundle> {
+  return buildBundleInternal(customerId, /* includeComms */ true);
+}
+
+async function buildBundleInternal(customerId: string, includeComms: boolean): Promise<Bundle> {
   const customer = await cb.getCustomer(customerId);
   const tChargebee = Number(customer.created_at ?? 0);
 
@@ -89,9 +107,9 @@ export async function buildBundle(customerId: string): Promise<Bundle> {
   const entityIds = entities.map(e => e.entity_id).filter(Boolean);
   const firstEntityId = entityIds[0];
 
-  // Comms
+  // Comms — heavy step (~40s), skipped on light builds (Stage 2 fills these in)
   let comms: mb.CommsResult = {};
-  if (entityIds.length) {
+  if (includeComms && entityIds.length) {
     comms = await mb.commsForEntities({
       entityIds: new Set(entityIds), cutoffUnix: tCreated, windowDays: COMMS_WINDOW_DAYS,
     });

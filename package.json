@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.1",
-    "@vercel/blob": "^0.27.0",
+    "@vercel/blob": "^1.0.0",
     "@vercel/postgres": "^0.10.0",
     "csv-parse": "^5.5.6",
     "docx": "^9.0.3",

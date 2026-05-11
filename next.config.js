@@ -12,13 +12,10 @@ const nextConfig = {
   // Include runtime-read files in the serverless function bundle. Without this
   // Next's file tracer omits files referenced only via fs.readFileSync.
   outputFileTracingIncludes: {
-    "/api/analyze/[customer_id]": [
-      "./prompt.md",
-      "./report_schema.example.json",
-    ],
-    "/api/cb-webhook": [
-      "./prompt.md",
-    ],
+    "/api/analyze/[customer_id]":       ["./prompt.md", "./report_schema.example.json"],
+    "/api/analyze/[customer_id]/comms": ["./prompt.md", "./report_schema.example.json"],
+    "/api/analyze/[customer_id]/llm":   ["./prompt.md", "./report_schema.example.json"],
+    "/api/cb-webhook":                  ["./prompt.md"],
   },
 
   // Long-running serverless function for the analyze pipeline
