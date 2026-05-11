@@ -341,10 +341,16 @@ table {
    One continuous timeline from page-load to last
    row — no separate animation events. Easing is
    ease-out-quint (gentle deceleration, no bounce).
-   ────────────────────────────────────────────── */
 
-/* Shared easing curve */
-:root { --ease-glide: cubic-bezier(0.16, 1, 0.3, 1); }
+   CRITICAL: every entrance class uses
+   `animation-fill-mode: backwards` so elements
+   default to FULLY VISIBLE (opacity: 1). The
+   keyframe's `from` state (opacity: 0) only
+   applies DURING the animation. If the animation
+   fails to run for any reason — CSS var not
+   resolved, browser quirk, ad-blocker etc. —
+   content stays visible. Never invisible-by-default.
+   ────────────────────────────────────────────── */
 
 /* Soft fade-up — small translate, gentle deceleration */
 @keyframes glide-in {
@@ -352,13 +358,14 @@ table {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Base classes everything composes from */
+/* Base classes everything composes from. `backwards` fill-mode applies the
+   `from` state during animation-delay; default opacity (1) applies if the
+   animation never starts at all. */
 .anim-rise,
 .anim-cascade > *,
 .table-row-anim,
 .verdict-callout {
-  opacity: 0;
-  animation: glide-in 0.65s var(--ease-glide) forwards;
+  animation: glide-in 0.65s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 /* Cascade — tight 35ms steps so cards feel like a single sweep, not 7
@@ -387,11 +394,10 @@ table {
 .table-row-anim:nth-child(10) { animation-delay: 0.78s; }
 
 /* Stat number — simple opacity fade synchronised with the card it lives in.
-   No scale/bounce — that read as visual noise on top of the card entrance. */
+   `backwards` fill-mode keeps the number visible by default. */
 .anim-number {
   display: inline-block;
-  opacity: 0;
-  animation: glide-in 0.65s var(--ease-glide) forwards;
+  animation: glide-in 0.65s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 /* Stat card hover — gentle 220ms lift with a soft blue halo */
@@ -443,7 +449,7 @@ a:hover .link-arrow,
 }
 .verdict-callout {
   position: relative;
-  animation: glide-in 0.65s var(--ease-glide) forwards;
+  animation: glide-in 0.65s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 .verdict-callout::after {
   content: "";
