@@ -19,6 +19,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { upsertCustomerStub, setCustomerStatus, logEvent, getCustomer } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
@@ -46,15 +47,24 @@ function verifyBasicAuth(req: NextRequest): boolean {
   }
 }
 
-async function fireAndForget(url: string, body: unknown) {
-  // Use Vercel's recommended fire-and-forget pattern via fetch with no-await.
-  // We do NOT await — the analyze route can take 30–120 s, and Chargebee will
-  // retry our webhook if we hold the connection open.
-  fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  }).catch(err => console.error("[webhook] fire-and-forget POST failed:", err.message));
+function fireAndForget(url: string, body: unknown) {
+  // Use Vercel's `waitUntil()` — without it, in-flight fetches get killed when
+  // the webhook function returns 200 to Chargebee. The fetch promise must
+  // remain "alive" until completion, OR we have to explicitly tell Vercel to
+  // keep the function alive for it via waitUntil.
+  const work = (async () => {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      console.log(`[webhook→analyze] POST ${url} status=${res.status}`);
+    } catch (err: any) {
+      console.error(`[webhook→analyze] POST ${url} failed:`, err?.message ?? err);
+    }
+  })();
+  waitUntil(work);
 }
 
 export async function POST(req: NextRequest) {
