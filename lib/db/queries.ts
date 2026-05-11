@@ -182,33 +182,69 @@ export async function logEvent(
 }
 
 /**
- * Heavy-handed update: sets every column from the validator/evaluator output
- * once a report is fully ready. Pass partial fields; nulls overwrite.
+ * Update writeable customer columns. Uses the tagged-template `sql` call so it
+ * works against @vercel/postgres v0.10 (which doesn't reliably honor sql.query()).
+ *
+ * Pattern: COALESCE(<provided value>, <existing column>). If a field is
+ * undefined in `fields`, it gets passed as null and COALESCE preserves the
+ * existing value. If it's explicitly null in `fields`, the column gets
+ * overwritten with null (we lose that "explicit-null" intent — but we don't
+ * actually need it for this app's writes).
+ *
+ * To force-null a column, use `setCustomerNull(cbCustomerId, ["col"])`.
  */
 export async function setCustomerReport(cbCustomerId: string, fields: Partial<Customer>) {
-  // Build dynamic UPDATE — keep it explicit (no key allow-listing surprises)
-  const allowed: (keyof Customer)[] = [
-    "stripe_customer_id", "stripe_created_at", "timestamp_mismatch_h", "timestamp_mismatch_flag",
-    "sub_id", "sub_status", "sub_item_price_ids", "sub_billing_period", "sub_billing_period_unit", "sub_total_cents",
-    "entity_id", "ae_name", "am_name", "lead_source_group", "lead_source",
-    "predicted_6_month_leads", "open_tickets_30d", "churn_potential_flag", "total_monthly_revenue",
-    "total_reviews_at_onb", "avg_rating_at_onb", "five_star_reviews",
-    "booking_platform", "booking_platform_url", "booking_platform_active",
-    "primary_category", "locality", "state_code", "country",
-    "scope", "verdict", "needs_am_call", "verdict_one_line", "key_flags",
-    "report_blob_docx_url", "report_blob_pdf_url", "report_blob_json_url", "report_blob_md_url",
-    "slack_channel_id", "slack_ts", "status", "failure_reason",
-  ];
-  const sets: string[] = [];
-  const vals: unknown[] = [];
-  let i = 1;
-  for (const k of allowed) {
-    if (fields[k] === undefined) continue;
-    sets.push(`${k} = $${i++}`);
-    vals.push(fields[k]);
+  const f = fields;
+  try {
+    await sql`
+      UPDATE customers SET
+        stripe_customer_id      = COALESCE(${f.stripe_customer_id ?? null}, stripe_customer_id),
+        stripe_created_at       = COALESCE(${(f.stripe_created_at ?? null) as any}::timestamptz, stripe_created_at),
+        timestamp_mismatch_h    = COALESCE(${f.timestamp_mismatch_h ?? null}, timestamp_mismatch_h),
+        timestamp_mismatch_flag = COALESCE(${f.timestamp_mismatch_flag ?? null}, timestamp_mismatch_flag),
+        sub_id                  = COALESCE(${f.sub_id ?? null}, sub_id),
+        sub_status              = COALESCE(${f.sub_status ?? null}, sub_status),
+        sub_item_price_ids      = COALESCE(${(f.sub_item_price_ids ?? null) as any}::text[], sub_item_price_ids),
+        sub_billing_period      = COALESCE(${f.sub_billing_period ?? null}, sub_billing_period),
+        sub_billing_period_unit = COALESCE(${f.sub_billing_period_unit ?? null}, sub_billing_period_unit),
+        sub_total_cents         = COALESCE(${f.sub_total_cents ?? null}, sub_total_cents),
+        entity_id               = COALESCE(${f.entity_id ?? null}, entity_id),
+        biz_name                = COALESCE(${(f as any).biz_name ?? null}, biz_name),
+        ae_name                 = COALESCE(${f.ae_name ?? null}, ae_name),
+        am_name                 = COALESCE(${f.am_name ?? null}, am_name),
+        lead_source_group       = COALESCE(${f.lead_source_group ?? null}, lead_source_group),
+        lead_source             = COALESCE(${f.lead_source ?? null}, lead_source),
+        predicted_6_month_leads = COALESCE(${f.predicted_6_month_leads ?? null}, predicted_6_month_leads),
+        open_tickets_30d        = COALESCE(${f.open_tickets_30d ?? null}, open_tickets_30d),
+        churn_potential_flag    = COALESCE(${f.churn_potential_flag ?? null}, churn_potential_flag),
+        total_monthly_revenue   = COALESCE(${f.total_monthly_revenue ?? null}, total_monthly_revenue),
+        total_reviews_at_onb    = COALESCE(${f.total_reviews_at_onb ?? null}, total_reviews_at_onb),
+        avg_rating_at_onb       = COALESCE(${f.avg_rating_at_onb ?? null}, avg_rating_at_onb),
+        five_star_reviews       = COALESCE(${f.five_star_reviews ?? null}, five_star_reviews),
+        booking_platform        = COALESCE(${f.booking_platform ?? null}, booking_platform),
+        booking_platform_url    = COALESCE(${f.booking_platform_url ?? null}, booking_platform_url),
+        booking_platform_active = COALESCE(${f.booking_platform_active ?? null}, booking_platform_active),
+        primary_category        = COALESCE(${f.primary_category ?? null}, primary_category),
+        locality                = COALESCE(${f.locality ?? null}, locality),
+        state_code              = COALESCE(${f.state_code ?? null}, state_code),
+        country                 = COALESCE(${f.country ?? null}, country),
+        scope                   = COALESCE(${f.scope ?? null}, scope),
+        verdict                 = COALESCE(${f.verdict ?? null}, verdict),
+        needs_am_call           = COALESCE(${f.needs_am_call ?? null}, needs_am_call),
+        verdict_one_line        = COALESCE(${f.verdict_one_line ?? null}, verdict_one_line),
+        key_flags               = COALESCE(${(f.key_flags ?? null) as any}::text[], key_flags),
+        report_blob_docx_url    = COALESCE(${f.report_blob_docx_url ?? null}, report_blob_docx_url),
+        report_blob_pdf_url     = COALESCE(${f.report_blob_pdf_url ?? null}, report_blob_pdf_url),
+        report_blob_json_url    = COALESCE(${f.report_blob_json_url ?? null}, report_blob_json_url),
+        report_blob_md_url      = COALESCE(${f.report_blob_md_url ?? null}, report_blob_md_url),
+        slack_channel_id        = COALESCE(${f.slack_channel_id ?? null}, slack_channel_id),
+        slack_ts                = COALESCE(${f.slack_ts ?? null}, slack_ts),
+        status                  = COALESCE(${f.status ?? null}, status),
+        failure_reason          = COALESCE(${f.failure_reason ?? null}, failure_reason)
+      WHERE cb_customer_id = ${cbCustomerId}
+    `;
+  } catch (e: any) {
+    console.error(`[setCustomerReport] failed for ${cbCustomerId}:`, e?.message ?? e);
+    throw e;
   }
-  if (!sets.length) return;
-  vals.push(cbCustomerId);
-  const q = `UPDATE customers SET ${sets.join(", ")} WHERE cb_customer_id = $${i}`;
-  await sql.query(q, vals);
 }
