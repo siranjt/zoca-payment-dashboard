@@ -46,12 +46,12 @@ function loadPrompt(): string {
   return fs.readFileSync(promptPath, "utf8");
 }
 
-// Hard cap on a single LLM round-trip. Sized to fit comfortably inside
-// Vercel's Fluid-Compute budget (~300s minus ~60s bundle = ~240s left for LLM
-// + render + slack). 180s gives Sonnet plenty of room (typical: 40–90s).
-// Override via ANTHROPIC_TIMEOUT_MS. maxRetries=0 in the client config means
-// timeouts fail immediately rather than spawning 2 silent retries.
-const REQUEST_TIMEOUT_MS = Number(process.env.ANTHROPIC_TIMEOUT_MS ?? 180_000);
+// Hard cap on a single LLM round-trip. The full report schema requires the
+// model to fill 11 sections worth of content (~8K tokens) — Sonnet at
+// ~50-100 tok/sec needs 100-180s. We give 240s to allow comfortable margin.
+// Total budget: 240s LLM + 55s bundle + ~15s render+slack = ~310s, fits
+// within Fluid-Compute's 300s soft cap. Override via ANTHROPIC_TIMEOUT_MS.
+const REQUEST_TIMEOUT_MS = Number(process.env.ANTHROPIC_TIMEOUT_MS ?? 240_000);
 
 const TOOL_NAME = "submit_analysis";
 
@@ -76,58 +76,137 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
           {
             name: TOOL_NAME,
             description:
-              "Submit the final ICP verdict and executive summary for this customer. " +
-              "Call this with the verdict fields — the dashboard and Slack post depend " +
-              "on the verdict_label, driver, and recommended_action_label. The full " +
-              "narrative Word doc is generated from your text content block, so write " +
-              "that BEFORE calling this tool.",
-            // CRITICAL: keep the schema small. Earlier versions required 11 top-level
-            // sections and the model timed out at 180s trying to populate all of them.
-            // We only force the model to fill the fields the dashboard surfaces; the
-            // rest of the docx report sections are filled with defaults in code (see
-            // wrapExecAsFullReport in this file).
+              "Submit the FULL Post-Payment Account Review for this customer. The " +
+              "output JSON renders directly into a multi-section Word document — every " +
+              "section described below MUST be populated with substantive content. " +
+              "Reference report_schema.example.json (the Be Beauty Studio worked " +
+              "example) as the shape template; your output for this customer should " +
+              "have equivalent depth and structure.",
             input_schema: {
               type: "object",
               properties: {
-                verdict_label: {
-                  type: "string",
-                  enum: ["ICP", "Review", "Not ICP"],
-                  description: "Final classification — one of: ICP, Review, Not ICP",
+                meta: {
+                  type: "object",
+                  description: "Doc header/footer metadata.",
+                  properties: {
+                    classification_banner: { type: "string", description: "Top-of-cover classification e.g. 'ZOCA · CONFIDENTIAL'" },
+                    title: { type: "string", description: "'Post-Payment Account Review'" },
+                    subtitle: { type: "string", description: "'ICP Fit Assessment & Post-Payment Pointer Analysis'" },
+                    subject_account: { type: "string", description: "'<Business name> (<Owner name>)'" },
+                    header_text: { type: "string", description: "Running header for inner pages" },
+                  },
+                  required: ["classification_banner", "title", "subtitle", "subject_account", "header_text"],
+                  additionalProperties: true,
                 },
-                verdict_status: {
-                  type: "string",
-                  enum: ["PASS", "WARN", "FAIL"],
-                  description: "Status banner color — PASS (green) / WARN (yellow) / FAIL (red)",
+                exec: {
+                  type: "object",
+                  description: "Executive summary block. Drives the dashboard verdict pill, Slack message, and the cover page.",
+                  properties: {
+                    verdict_label: { type: "string", enum: ["ICP", "Review", "Not ICP"] },
+                    verdict_status: { type: "string", enum: ["PASS", "WARN", "FAIL"] },
+                    recommended_action_label: { type: "string", description: "Short imperative; include 'AM' if AM team must act." },
+                    driver: { type: "string", description: "One-line cause citing the Module 02 rule." },
+                    reinforcing_flags: { type: "string", description: "Semicolon-separated list of 2-4 additional flags." },
+                    mitigating_factors: { type: "string", description: "Semicolon-separated factors against the verdict." },
+                    summary_paragraphs: { type: "array", items: { type: "string" }, description: "3-5 substantive paragraphs covering: business profile, Module 02 application, reinforcing flags, comms/demo analysis, recommended action with timeline." },
+                    net_retention_picture: { type: "string", description: "One paragraph retention outlook." },
+                    likely_outcome: { type: "string", description: "Most probable outcome if no action." },
+                  },
+                  required: ["verdict_label", "verdict_status", "recommended_action_label", "driver", "reinforcing_flags", "mitigating_factors", "summary_paragraphs", "net_retention_picture", "likely_outcome"],
+                  additionalProperties: true,
                 },
-                driver: {
-                  type: "string",
-                  description: "One-line reason for the verdict, citing the specific Module 02 rule.",
+                section1: {
+                  type: "object",
+                  description: "Subject identifier and data sources tables.",
+                  properties: {
+                    subject_table: { type: "array", items: { type: "array", items: { type: "string" } }, description: "2D array (table). First row is headers ['Subject identifier', 'Value']. Following rows: ['Business name', '<name>'], ['Owner / decision-maker', '<name>'], etc. Include all the standard rows from the example: Business name, Owner, Primary category, Location, Chargebee customer ID, Stripe customer ID, Zoca entity ID, First Discovery payment, Subscription SKU, AE, AM." },
+                    data_sources_table: { type: "array", items: { type: "array", items: { type: "string" } }, description: "2D array. First row: ['Data source', 'Type', 'Used for']. Rows for each source the validator used." },
+                  },
+                  required: ["subject_table", "data_sources_table"],
+                  additionalProperties: true,
                 },
-                recommended_action_label: {
-                  type: "string",
-                  description: "Short imperative phrase like 'AM-led recovery within 7 days' or 'Onboard normally'. Include 'AM' if the AM team should act.",
+                section3_risks: {
+                  type: "object",
+                  description: "Risk register.",
+                  properties: {
+                    intro: { type: "string", description: "One-paragraph framing of the risks." },
+                    risks: { type: "array", items: { type: "object", additionalProperties: true }, description: "5-8 risk objects, each with: id (R1, R2...), risk (short title), likelihood (PASS/WARN/FAIL/RISK/GAP), impact (same scale), driver_mitigation (sentence explaining the driver + recommended mitigation)." },
+                  },
+                  required: ["intro", "risks"],
+                  additionalProperties: true,
                 },
-                reinforcing_flags: {
-                  type: "string",
-                  description: "Semicolon-separated list of 2-4 additional flags that reinforce the verdict.",
+                section4_framework: {
+                  type: "object",
+                  description: "Module 02 ICP framework application.",
+                  properties: {
+                    tier_application: { type: "string", description: "Brief statement of which Step-1.2 tier (below 30 / 30-60 / above 60) this customer falls in." },
+                    vertical_lock_text: { type: "string", description: "1-2 sentences on whether the customer is in the beauty/wellness vertical." },
+                    step1: { type: "array", items: { type: "object", additionalProperties: true }, description: "Array of 3 gate objects (1.1 Device, 1.2 Lead prediction, 1.3 Booking platform). Each has: gate (label), status (PASS/FAIL/AUTOFAIL/GAP/WARN), evidence (string or array of paragraph objects)." },
+                    step2: { type: "array", items: { type: "object", additionalProperties: true }, description: "Array of Step-2 lead-shape evaluation rows. Each: row_label, status, evidence." },
+                  },
+                  required: ["tier_application", "vertical_lock_text", "step1", "step2"],
+                  additionalProperties: true,
                 },
-                mitigating_factors: {
-                  type: "string",
-                  description: "Semicolon-separated factors that argue AGAINST the verdict. Empty string if none.",
-                },
-                summary_paragraphs: {
+                section5_pointers: {
                   type: "array",
-                  items: { type: "string" },
-                  description: "3-5 paragraph executive summary.",
+                  items: { type: "object", additionalProperties: true },
+                  description: "Array of 8-15 post-payment pointer items. Each pointer object has: id (P1, P2...), pointer (short title), status (FAIL/WARN/RISK/GAP/PASS), evidence (string or rich paragraph array), action (recommended next action sentence).",
                 },
-                likely_outcome: {
-                  type: "string",
-                  description: "Most probable outcome if no action is taken.",
+                section6_actions: {
+                  type: "object",
+                  description: "Recommended actions table.",
+                  properties: {
+                    intro: { type: "string" },
+                    actions: { type: "array", items: { type: "object", additionalProperties: true }, description: "Array of action objects: owner, action, timeline, success_criteria." },
+                  },
+                  required: ["intro", "actions"],
+                  additionalProperties: true,
+                },
+                section7_systemic: {
+                  type: "object",
+                  description: "Systemic / process recommendations beyond this customer.",
+                  properties: {
+                    intro: { type: "string" },
+                    recommendations: { type: "array", items: { type: "object", additionalProperties: true }, description: "Each: title, description, owner." },
+                  },
+                  required: ["intro", "recommendations"],
+                  additionalProperties: true,
+                },
+                section8_gaps: {
+                  type: "object",
+                  description: "Open data gaps the validator could not close.",
+                  properties: {
+                    intro: { type: "string" },
+                    gaps: { type: "array", items: { type: "object", additionalProperties: true }, description: "Each: gap, impact, owner_to_fix." },
+                  },
+                  required: ["intro", "gaps"],
+                  additionalProperties: true,
+                },
+                section9_evidence: {
+                  type: "object",
+                  description: "Evidence appendix — quoted comms snippets, key data points.",
+                  properties: {
+                    intro: { type: "string" },
+                    items: { type: "array", items: { type: "object", additionalProperties: true }, description: "Each: label, content, source." },
+                  },
+                  required: ["intro", "items"],
+                  additionalProperties: true,
+                },
+                references: {
+                  type: "object",
+                  description: "Source references.",
+                  properties: {
+                    intro: { type: "string" },
+                    items: { type: "array", items: { type: "object", additionalProperties: true }, description: "Each: label, citation." },
+                  },
+                  required: ["intro", "items"],
+                  additionalProperties: true,
                 },
               },
               required: [
-                "verdict_label", "verdict_status", "driver",
-                "recommended_action_label", "reinforcing_flags", "summary_paragraphs",
+                "meta", "exec", "section1", "section3_risks", "section4_framework",
+                "section5_pointers", "section6_actions", "section7_systemic",
+                "section8_gaps", "section9_evidence", "references",
               ],
               additionalProperties: true,
             },
@@ -152,11 +231,11 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
     if (!toolInput) {
       throw new Error("model did not call submit_analysis tool");
     }
-    // Wrap the flat tool output (verdict fields) into the full report-data
-    // structure the docx renderer expects. The narrative markdown content
-    // produced by the model becomes the body of the doc; the verdict block
-    // becomes the executive summary section.
-    const reportData = wrapExecAsFullReport(toolInput, markdown);
+    // The tool input IS the full report-data structure — pass it straight to
+    // the renderer. Fill in defaults for any missing keys so the renderer
+    // doesn't crash on sparse output (defensive: missing section just renders
+    // as an empty heading).
+    const reportData = fillReportDefaults(toolInput);
     return { markdown: markdown.trim(), reportData };
   } catch (e: any) {
     const elapsed = Date.now() - t0;
@@ -194,8 +273,10 @@ export async function evaluate(args: {
     "```",
     "",
     "INSTRUCTIONS:",
-    "1) Write a thorough Markdown analysis as a TEXT content block. Include: the verdict, the Module 02 rule that drives it (cite section + rule), the reinforcing flags, key facts from the bundle (lead prediction, reviews, booking platform, AE/AM), the comms analysis, and the recommended action. Quote specific evidence — exact phone-call durations, message text, missed checks, etc.",
-    "2) THEN call the `submit_analysis` tool with the verdict fields. Required fields: verdict_label (ICP / Review / Not ICP), verdict_status (PASS / WARN / FAIL), driver (one-line cause), recommended_action_label (short imperative), reinforcing_flags (semicolon-separated), summary_paragraphs (3-5 paragraphs).",
+    "Call the `submit_analysis` tool with the FULL structured report. Fill in every required section — the output JSON renders into a complete multi-section Word document.",
+    "Use report_schema.example.json (Be Beauty Studio worked example) as your shape reference. Your output should match its depth: cover meta, full executive summary, subject identifier table, data sources table, 5-8 risks in section3_risks, all three Step-1 gates and Step-2 row in section4_framework, 8-15 pointers in section5_pointers, recommended actions, systemic recommendations, open gaps, evidence snippets with quotes from comms, and references.",
+    "Cite specific evidence: exact phone-call durations, verbatim message text, the predicted-leads number, the review count, the AE/AM names, the booking platform, etc.",
+    "You MAY also emit a short TEXT content block before the tool call summarizing the verdict — it'll be used as the Slack thread reply.",
   ].join("\n");
 
   const { markdown, reportData } = await callOnce(systemPrompt, userPrompt);
@@ -224,47 +305,29 @@ function synthesizeMarkdownFromReport(report: any): string {
 }
 
 /**
- * Wrap the flat tool output into the full 11-section report-data structure
- * the docx renderer expects. The verdict fields go into `exec`; everything
- * else gets sensible defaults so the renderer doesn't crash on missing keys.
- *
- * Keeping the renderer's structure stable lets us add sections back to the
- * LLM-driven output later without re-plumbing the renderer.
+ * Take the LLM's full report-data output and back-fill any sections it left
+ * out. This is defense-in-depth — the schema asks for all 11 sections, but
+ * if the model skips one, we want the renderer to still produce a valid doc
+ * (the skipped section will just render as an empty heading).
  */
-function wrapExecAsFullReport(toolInput: any, markdown: string): any {
-  const exec = {
-    verdict_label: toolInput.verdict_label ?? null,
-    verdict_status: toolInput.verdict_status ?? null,
-    recommended_action_label: toolInput.recommended_action_label ?? null,
-    driver: toolInput.driver ?? null,
-    reinforcing_flags: toolInput.reinforcing_flags ?? "",
-    mitigating_factors: toolInput.mitigating_factors ?? "",
-    summary_paragraphs: Array.isArray(toolInput.summary_paragraphs)
-      ? toolInput.summary_paragraphs
-      : (markdown ? [markdown] : []),
-    net_retention_picture: toolInput.net_retention_picture ?? "",
-    likely_outcome: toolInput.likely_outcome ?? "",
-  };
+function fillReportDefaults(input: any): any {
   return {
-    meta: {
+    meta: input.meta ?? {
       classification_banner: "ZOCA · CONFIDENTIAL",
       title: "Post-Payment Account Review",
       subtitle: "ICP Fit Assessment & Post-Payment Pointer Analysis",
       subject_account: "(see Section 1)",
       header_text: "Zoca · Confidential — Post-Payment Account Review",
     },
-    exec,
-    section1: { subject_table: [], data_sources_table: [] },
-    section3_risks: { intro: "", risks: [] },
-    section4_framework: { tier_application: "", vertical_lock_text: "", step1: [], step2: [] },
-    section5_pointers: [],
-    section6_actions: { intro: "", actions: [] },
-    section7_systemic: { intro: "", recommendations: [] },
-    section8_gaps: { intro: "", gaps: [] },
-    section9_evidence: { intro: "", items: [] },
-    references: { intro: "", items: [] },
-    // The full narrative analysis goes here for renderers that want it in
-    // one chunk instead of section-by-section.
-    full_analysis_markdown: markdown,
+    exec: input.exec ?? {},
+    section1: input.section1 ?? { subject_table: [], data_sources_table: [] },
+    section3_risks: input.section3_risks ?? { intro: "", risks: [] },
+    section4_framework: input.section4_framework ?? { tier_application: "", vertical_lock_text: "", step1: [], step2: [] },
+    section5_pointers: Array.isArray(input.section5_pointers) ? input.section5_pointers : [],
+    section6_actions: input.section6_actions ?? { intro: "", actions: [] },
+    section7_systemic: input.section7_systemic ?? { intro: "", recommendations: [] },
+    section8_gaps: input.section8_gaps ?? { intro: "", gaps: [] },
+    section9_evidence: input.section9_evidence ?? { intro: "", items: [] },
+    references: input.references ?? { intro: "", items: [] },
   };
 }
