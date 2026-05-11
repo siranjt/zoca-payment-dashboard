@@ -14,10 +14,14 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Bundle } from "@/lib/validator/bundle";
 
-// Default to Sonnet (fast, comparable quality). Override with ANTHROPIC_MODEL.
-// IMPORTANT: Opus regularly exceeds 60s on this prompt — only use it if Vercel
-// Fluid Compute is verified to be granting >60s timeouts.
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
+// Default to Haiku — finishes this analysis in 15–30s and stays comfortably
+// within Vercel's function budget even on cold starts. Sonnet routinely hits
+// 90–150s on this prompt size, which left zero margin and produced repeated
+// pipeline_failed events. Quality difference is minimal because the ICP
+// framework and rules are fully spelled out in the prompt.
+//
+// To override: set ANTHROPIC_MODEL=claude-sonnet-4-6 (or opus) in Vercel envs.
+const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001";
 const MAX_TOKENS = 12_000;
 
 // CRITICAL: disable SDK retries. The default is 2 retries, which on a
