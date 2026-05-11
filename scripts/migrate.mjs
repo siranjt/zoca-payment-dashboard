@@ -26,11 +26,40 @@ if (!process.env.POSTGRES_URL) {
 }
 console.log("Using connection from env (masked):", process.env.POSTGRES_URL.replace(/:([^:@]+)@/, ":****@"));
 
-const ddl = fs.readFileSync(schemaPath, "utf8");
-const statements = ddl
-  .split(/;\s*\n/g)
-  .map(s => s.trim())
-  .filter(s => s.length && !s.startsWith("--"));
+const rawDdl = fs.readFileSync(schemaPath, "utf8");
+
+// 1. Strip line comments first (-- ...) so they don't interfere with splitting.
+// 2. Split on semicolons that aren't inside dollar-quoted bodies ($$ ... $$).
+//    This matters for CREATE FUNCTION ... AS $$ BEGIN ...; END; $$.
+const noLineComments = rawDdl
+  .split("\n")
+  .map(line => {
+    const idx = line.indexOf("--");
+    return idx === -1 ? line : line.slice(0, idx);
+  })
+  .join("\n");
+
+const statements = [];
+let buf = "";
+let inDollarQuote = false;
+for (let i = 0; i < noLineComments.length; i++) {
+  const c = noLineComments[i];
+  const c2 = noLineComments.slice(i, i + 2);
+  if (c2 === "$$") {
+    inDollarQuote = !inDollarQuote;
+    buf += "$$";
+    i++;
+    continue;
+  }
+  if (c === ";" && !inDollarQuote) {
+    const trimmed = buf.trim();
+    if (trimmed) statements.push(trimmed);
+    buf = "";
+    continue;
+  }
+  buf += c;
+}
+if (buf.trim()) statements.push(buf.trim());
 
 console.log(`Running ${statements.length} statements against ${process.env.POSTGRES_URL.split("@")[1]?.split("/")[0] ?? "?"}`);
 
