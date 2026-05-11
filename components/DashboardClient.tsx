@@ -1,9 +1,48 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ManualAnalysisButton } from "@/components/ManualAnalysisButton";
 import AmbientSparkles from "@/components/AmbientSparkles";
+
+/**
+ * useCountUp — tween a number from 0 → target over `duration` ms.
+ * Uses requestAnimationFrame so it stays in sync with the entrance wave.
+ * Easing: ease-out-quint, matching the global motion language.
+ */
+function useCountUp(target: number, duration = 900, delay = 0): number {
+  const [val, setVal] = useState(0);
+  const prev = useRef(0);
+  useEffect(() => {
+    const from = prev.current;
+    const to = target;
+    let raf = 0;
+    let started = false;
+    const start = performance.now() + delay;
+    const easeOutQuint = (t: number) => 1 - Math.pow(1 - t, 5);
+    const tick = (now: number) => {
+      if (now < start) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      if (!started) started = true;
+      const t = Math.min(1, (now - start) / duration);
+      const v = from + (to - from) * easeOutQuint(t);
+      setVal(v);
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else prev.current = to;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration, delay]);
+  return Math.round(val);
+}
+
+/** AnimatedNumber — drop-in stat-strip / donut-center number with count-up tween. */
+function AnimatedNumber({ value, delay = 0, className }: { value: number; delay?: number; className?: string }) {
+  const v = useCountUp(value, 900, delay);
+  return <span className={`count-up ${className ?? ""}`}>{v}</span>;
+}
 
 type Customer = {
   cb_customer_id: string;
@@ -52,7 +91,7 @@ function verdictKey(c: Customer): VerdictFilter {
 }
 
 /* ──────────────────────────────────────────────
-   DONUT CHART — verdict distribution
+   DONUT CHART — verdict distribution (animated)
    ────────────────────────────────────────────── */
 function VerdictDonut({
   data,
@@ -68,11 +107,16 @@ function VerdictDonut({
   const stroke = 22;
   const C = 2 * Math.PI * r;
   let acc = 0;
+
+  // Center number tweens too — bump key so it flashes on selection change
+  const centerValue = selected === "all" ? total : data.find((d) => d.key === selected)?.value ?? 0;
+  const centerLabel = selected === "all" ? "Total" : data.find((d) => d.key === selected)?.label ?? "Filter";
+
   return (
     <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: 200 }}>
       <svg width={180} height={180} viewBox="0 0 180 180">
         <circle cx={90} cy={90} r={r} fill="none" stroke="#F3F4F6" strokeWidth={stroke} />
-        {data.map((d) => {
+        {data.map((d, idx) => {
           if (d.value === 0) return null;
           const pct = d.value / Math.max(total, 1);
           const len = pct * C;
@@ -82,6 +126,7 @@ function VerdictDonut({
           return (
             <circle
               key={d.key}
+              className="donut-ring"
               cx={90}
               cy={90}
               r={r}
@@ -93,20 +138,27 @@ function VerdictDonut({
               transform="rotate(-90 90 90)"
               style={{
                 cursor: "pointer",
-                transition: "stroke-width 200ms ease, opacity 200ms ease",
                 opacity: selected === "all" || isSelected ? 1 : 0.35,
+                // Stagger ring entry; shift to a higher base delay so it lands
+                // just after the chart-card glide-in finishes.
+                animationDelay: `${0.26 + idx * 0.08}s`,
+                ["--ring-offset" as any]: `${offset}`,
               }}
               onClick={() => onSelect(isSelected ? "all" : d.key)}
             />
           );
         })}
       </svg>
-      <div style={{ position: "absolute", textAlign: "center", pointerEvents: "none" }}>
+      <div
+        key={`${selected}-${centerValue}`}
+        className="donut-center"
+        style={{ position: "absolute", textAlign: "center", pointerEvents: "none" }}
+      >
         <div style={{ fontSize: 11, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5 }}>
-          {selected === "all" ? "Total" : data.find((d) => d.key === selected)?.label ?? "Filter"}
+          {centerLabel}
         </div>
         <div style={{ fontSize: 30, fontWeight: 700, color: "#0A2540", lineHeight: 1.1 }}>
-          {selected === "all" ? total : data.find((d) => d.key === selected)?.value ?? 0}
+          <AnimatedNumber value={centerValue} delay={400} />
         </div>
       </div>
     </div>
@@ -131,33 +183,37 @@ function AMBarChart({
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "8px 0" }}>
-      {data.map((d) => {
+      {data.map((d, idx) => {
         const pct = (d.count / max) * 100;
         const isSelected = selectedAm === d.name;
         return (
           <div
             key={d.name}
+            className="am-bar-row"
             onClick={() => onSelectAm(isSelected ? null : d.name)}
             style={{
               cursor: "pointer",
               padding: "6px 8px",
               borderRadius: 6,
               background: isSelected ? "#EFF6FF" : "transparent",
-              transition: "background 200ms ease",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 12 }}>
               <span style={{ color: isSelected ? "#1E40AF" : "#0A2540", fontWeight: isSelected ? 600 : 500 }}>{d.name}</span>
-              <span style={{ color: "#6B7280", fontVariantNumeric: "tabular-nums" }}>{d.count}</span>
+              <span style={{ color: "#6B7280", fontVariantNumeric: "tabular-nums" }}>
+                <AnimatedNumber value={d.count} delay={500 + idx * 90} />
+              </span>
             </div>
             <div style={{ height: 6, background: "#F3F4F6", borderRadius: 3, overflow: "hidden" }}>
               <div
+                className="bar-grow"
                 style={{
                   width: `${pct}%`,
                   height: "100%",
                   background: isSelected ? "#2D5BFF" : "#8B5CF6",
                   borderRadius: 3,
-                  transition: "width 600ms cubic-bezier(0.16, 1, 0.3, 1), background 200ms ease",
+                  transition: "background 200ms ease",
+                  animationDelay: `${0.40 + idx * 0.08}s`,
                 }}
               />
             </div>
@@ -188,7 +244,7 @@ function LeadPredictionTiers({
       <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: 170 }}>
         <svg width={160} height={160} viewBox="0 0 180 180">
           <circle cx={90} cy={90} r={r} fill="none" stroke="#F3F4F6" strokeWidth={stroke} />
-          {total === 0 ? null : data.map((d) => {
+          {total === 0 ? null : data.map((d, idx) => {
             if (d.value === 0) return null;
             const pct = d.value / Math.max(total, 1);
             const len = pct * C;
@@ -197,6 +253,7 @@ function LeadPredictionTiers({
             return (
               <circle
                 key={d.key}
+                className="donut-ring"
                 cx={90}
                 cy={90}
                 r={r}
@@ -206,13 +263,18 @@ function LeadPredictionTiers({
                 strokeDasharray={`${len} ${C - len}`}
                 strokeDashoffset={offset}
                 transform="rotate(-90 90 90)"
+                style={{
+                  animationDelay: `${0.36 + idx * 0.08}s`,
+                }}
               />
             );
           })}
         </svg>
-        <div style={{ position: "absolute", textAlign: "center", pointerEvents: "none" }}>
+        <div className="donut-center" style={{ position: "absolute", textAlign: "center", pointerEvents: "none" }}>
           <div style={{ fontSize: 11, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5 }}>Avg leads</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: "#0A2540", lineHeight: 1.1 }}>{avg ?? "—"}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "#0A2540", lineHeight: 1.1 }}>
+            {avg == null ? "—" : <AnimatedNumber value={avg} delay={550} />}
+          </div>
           <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>predicted / 6mo</div>
         </div>
       </div>
@@ -238,12 +300,14 @@ function StatCard({
   tone,
   active,
   onClick,
+  delay = 0,
 }: {
   label: string;
   value: number;
   tone: "ink" | "green" | "yellow" | "red" | "dim";
   active: boolean;
   onClick?: () => void;
+  delay?: number;
 }) {
   const toneCls =
     tone === "green" ? "text-accent-green"
@@ -254,7 +318,7 @@ function StatCard({
   return (
     <div
       onClick={onClick}
-      className="stat-card rounded-2xl border border-line bg-surface/50 backdrop-blur-sm p-4"
+      className={`stat-card rounded-2xl border border-line bg-surface/50 backdrop-blur-sm p-4 ${active ? "stat-card-active" : ""}`}
       style={{
         cursor: onClick ? "pointer" : "default",
         borderColor: active ? "rgba(45, 91, 255, 0.5)" : undefined,
@@ -262,7 +326,9 @@ function StatCard({
       }}
     >
       <div className="text-xs text-ink-dim">{label}</div>
-      <div className={`text-2xl font-bold mt-1 ${toneCls}`}>{value}</div>
+      <div className={`text-2xl font-bold mt-1 ${toneCls}`}>
+        <AnimatedNumber value={value} delay={delay} />
+      </div>
     </div>
   );
 }
@@ -480,23 +546,24 @@ export default function DashboardClient({ customers }: { customers: Customer[] }
         </button>
       </section>
 
-      {/* STAT STRIP — click to filter */}
+      {/* STAT STRIP — click to filter. Delays cascade across the strip so
+          numbers count up in a wave. */}
       <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 anim-cascade">
-        <StatCard label="Total since floor" value={totals.all}        tone="ink"    active={verdictFilter === "all"}          onClick={() => setVerdictFilter("all")} />
-        <StatCard label="✅ ICP"            value={totals.icp}        tone="green"  active={verdictFilter === "icp"}          onClick={() => setVerdictFilter(verdictFilter === "icp" ? "all" : "icp")} />
-        <StatCard label="⚠️ Review"         value={totals.review}     tone="yellow" active={verdictFilter === "review"}       onClick={() => setVerdictFilter(verdictFilter === "review" ? "all" : "review")} />
-        <StatCard label="❌ Not ICP"        value={totals.not_icp}    tone="red"    active={verdictFilter === "not_icp"}      onClick={() => setVerdictFilter(verdictFilter === "not_icp" ? "all" : "not_icp")} />
-        <StatCard label="Out of scope"     value={totals.out_of_scope} tone="dim"  active={verdictFilter === "out_of_scope"} onClick={() => setVerdictFilter(verdictFilter === "out_of_scope" ? "all" : "out_of_scope")} />
-        <StatCard label="Pending"          value={totals.pending}     tone="dim"   active={verdictFilter === "pending"}      onClick={() => setVerdictFilter(verdictFilter === "pending" ? "all" : "pending")} />
-        <StatCard label="Failed"           value={totals.failed}      tone="red"   active={verdictFilter === "failed"}       onClick={() => setVerdictFilter(verdictFilter === "failed" ? "all" : "failed")} />
+        <StatCard label="Total since floor" value={totals.all}        tone="ink"    active={verdictFilter === "all"}          onClick={() => setVerdictFilter("all")}                                                                       delay={220} />
+        <StatCard label="✅ ICP"            value={totals.icp}        tone="green"  active={verdictFilter === "icp"}          onClick={() => setVerdictFilter(verdictFilter === "icp" ? "all" : "icp")}                                     delay={260} />
+        <StatCard label="⚠️ Review"         value={totals.review}     tone="yellow" active={verdictFilter === "review"}       onClick={() => setVerdictFilter(verdictFilter === "review" ? "all" : "review")}                               delay={300} />
+        <StatCard label="❌ Not ICP"        value={totals.not_icp}    tone="red"    active={verdictFilter === "not_icp"}      onClick={() => setVerdictFilter(verdictFilter === "not_icp" ? "all" : "not_icp")}                             delay={340} />
+        <StatCard label="Out of scope"     value={totals.out_of_scope} tone="dim"  active={verdictFilter === "out_of_scope"} onClick={() => setVerdictFilter(verdictFilter === "out_of_scope" ? "all" : "out_of_scope")}                  delay={380} />
+        <StatCard label="Pending"          value={totals.pending}     tone="dim"   active={verdictFilter === "pending"}      onClick={() => setVerdictFilter(verdictFilter === "pending" ? "all" : "pending")}                             delay={420} />
+        <StatCard label="Failed"           value={totals.failed}      tone="red"   active={verdictFilter === "failed"}       onClick={() => setVerdictFilter(verdictFilter === "failed" ? "all" : "failed")}                               delay={460} />
       </section>
 
-      {/* CHARTS GRID */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 anim-rise" style={{ animationDelay: "0.22s" }}>
-        <div className="rounded-2xl border border-line bg-surface p-5">
+      {/* CHARTS GRID — three equal-height cards, lined up with flex */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 anim-rise items-stretch" style={{ animationDelay: "0.22s" }}>
+        <div className="chart-card rounded-2xl border border-line bg-surface p-5 flex flex-col">
           <div className="text-xs text-ink-dim uppercase tracking-wide font-medium mb-3">Verdict distribution</div>
           <VerdictDonut data={donutData} selected={verdictFilter} onSelect={setVerdictFilter} />
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-3 text-xs">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-auto pt-3 text-xs">
             {donutData.map((d) => (
               <div
                 key={d.key}
@@ -511,16 +578,18 @@ export default function DashboardClient({ customers }: { customers: Customer[] }
             ))}
           </div>
         </div>
-        <div className="rounded-2xl border border-line bg-surface p-5">
+        <div className="chart-card rounded-2xl border border-line bg-surface p-5 flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <div className="text-xs text-ink-dim uppercase tracking-wide font-medium">AM workload</div>
             {selectedAm && (
               <button onClick={() => setSelectedAm(null)} className="text-xs text-accent-blue hover:underline">clear</button>
             )}
           </div>
-          <AMBarChart data={amCounts} selectedAm={selectedAm} onSelectAm={setSelectedAm} />
+          <div className="flex-1">
+            <AMBarChart data={amCounts} selectedAm={selectedAm} onSelectAm={setSelectedAm} />
+          </div>
         </div>
-        <div className="rounded-2xl border border-line bg-surface p-5">
+        <div className="chart-card rounded-2xl border border-line bg-surface p-5 flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <div className="text-xs text-ink-dim uppercase tracking-wide font-medium">Lead prediction tiers</div>
             <div className="text-[10px] text-ink-faint">Module 02 · Step 1.2</div>
@@ -597,7 +666,7 @@ export default function DashboardClient({ customers }: { customers: Customer[] }
                 <td className="px-4 py-3"><VerdictPill c={c} /></td>
                 <td className="px-4 py-3 text-right">
                   {c.status === "ready" ? (
-                    <Link href={`/reports/${c.cb_customer_id}`} className="text-accent-blue font-medium hover:text-accent-blue-strong transition group">
+                    <Link href={`/reports/${c.cb_customer_id}`} className="report-link text-accent-blue font-medium hover:text-accent-blue-strong transition group">
                       Open report <span className="link-arrow inline-block">→</span>
                     </Link>
                   ) : c.status === "out_of_scope" ? (
