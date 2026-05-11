@@ -22,9 +22,22 @@ type Customer = {
 
 type VerdictFilter = "all" | "icp" | "review" | "not_icp" | "pending" | "failed" | "out_of_scope";
 
-function fmtDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toISOString().slice(0, 16).replace("T", " ") + "Z";
+// Defensive — accept string | Date | null, never throw
+function toIsoSafe(v: unknown): string {
+  if (!v) return "";
+  if (typeof v === "string") return v;
+  if (v instanceof Date) return v.toISOString();
+  try { return new Date(v as any).toISOString(); } catch { return ""; }
+}
+
+function fmtDate(iso: unknown): string {
+  const s = toIsoSafe(iso);
+  if (!s) return "—";
+  try {
+    return new Date(s).toISOString().slice(0, 16).replace("T", " ") + "Z";
+  } catch {
+    return "—";
+  }
 }
 
 function verdictKey(c: Customer): VerdictFilter {
@@ -350,7 +363,8 @@ export default function DashboardClient({ customers }: { customers: Customer[] }
       days[key] = 0;
     }
     for (const c of customers) {
-      const k = c.cb_created_at?.slice(0, 10);
+      const iso = toIsoSafe(c.cb_created_at);
+      const k = iso ? iso.slice(0, 10) : "";
       if (k && k in days) days[k]++;
     }
     return Object.entries(days).map(([date, count]) => ({ date, count }));
@@ -371,8 +385,10 @@ export default function DashboardClient({ customers }: { customers: Customer[] }
       );
     }
     r.sort((a, b) => {
-      if (sort === "created_desc") return b.cb_created_at.localeCompare(a.cb_created_at);
-      if (sort === "created_asc") return a.cb_created_at.localeCompare(b.cb_created_at);
+      const aIso = toIsoSafe(a.cb_created_at);
+      const bIso = toIsoSafe(b.cb_created_at);
+      if (sort === "created_desc") return bIso.localeCompare(aIso);
+      if (sort === "created_asc") return aIso.localeCompare(bIso);
       if (sort === "biz_asc") return (a.biz_name ?? "").localeCompare(b.biz_name ?? "");
       if (sort === "verdict") return verdictKey(a).localeCompare(verdictKey(b));
       return 0;

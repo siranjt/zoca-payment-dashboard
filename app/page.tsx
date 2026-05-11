@@ -29,7 +29,17 @@ export default async function Page() {
     );
   }
 
-  // Cast to the trimmer shape the client expects (DB type has extra fields)
+  // Cast to the trimmer shape the client expects (DB type has extra fields).
+  // CRITICAL: cb_created_at comes from Neon as a JS Date. Coerce to ISO
+  // string here — once it crosses the server→client RSC boundary, calling
+  // string methods on a Date throws and triggers a client-side exception.
+  const toIso = (v: unknown): string => {
+    if (!v) return "";
+    if (v instanceof Date) return v.toISOString();
+    if (typeof v === "string") return v;
+    try { return new Date(v as any).toISOString(); } catch { return ""; }
+  };
+
   const payload = customers.map((c) => ({
     cb_customer_id: c.cb_customer_id,
     biz_name: c.biz_name,
@@ -40,7 +50,7 @@ export default async function Page() {
     verdict: c.verdict,
     status: c.status,
     failure_reason: c.failure_reason,
-    cb_created_at: c.cb_created_at,
+    cb_created_at: toIso(c.cb_created_at),
     primary_category: c.primary_category,
     predicted_6_month_leads: c.predicted_6_month_leads,
   }));
