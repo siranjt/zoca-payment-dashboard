@@ -9,6 +9,7 @@
 import { listCustomersSinceFloor, type Customer } from "@/lib/db/queries";
 import Link from "next/link";
 import AmbientSparkles from "@/components/AmbientSparkles";
+import { ManualAnalysisButton } from "@/components/ManualAnalysisButton";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -253,7 +254,7 @@ export default async function Page() {
                   ) : c.status === "out_of_scope" ? (
                     <span className="text-ink-faint">—</span>
                   ) : (
-                    <span className="text-ink-faint text-sm">{c.status}</span>
+                    <ManualAnalysisButton customerId={c.cb_customer_id} />
                   )}
                 </td>
               </tr>
