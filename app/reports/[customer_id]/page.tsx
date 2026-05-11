@@ -10,6 +10,7 @@
 
 import { getCustomer } from "@/lib/db/queries";
 import Link from "next/link";
+import { DocxPreviewButton } from "@/components/DocxPreviewButton";
 
 export const dynamic = "force-dynamic";
 
@@ -68,9 +69,10 @@ export default async function ReportPage({ params }: { params: { customer_id: st
         <h2 className="text-2xl font-bold text-zoca-ink">{c.biz_name ?? c.cb_customer_id}</h2>
         <div className="flex gap-2 text-sm">
           {c.report_blob_docx_url && (
-            <a href={c.report_blob_docx_url} className="px-3 py-1.5 border border-zoca-accent text-zoca-accent rounded hover:bg-zoca-info">
-              ↓ Download .docx
-            </a>
+            <DocxPreviewButton
+              docxUrl={c.report_blob_docx_url}
+              filename={`${(c.biz_name ?? c.cb_customer_id).replace(/[^a-zA-Z0-9_-]+/g, "_")}_Post_Payment_Review.docx`}
+            />
           )}
           {c.report_blob_json_url && (
             <a href={c.report_blob_json_url} className="px-3 py-1.5 border border-slate-300 text-slate-600 rounded hover:bg-slate-50">
