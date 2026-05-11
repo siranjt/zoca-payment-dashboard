@@ -1,24 +1,43 @@
 /**
- * Stage 3 of the analyze pipeline — LLM evaluation + docx render + Slack post.
+ * Stage 3a of the analyze pipeline — LLM evaluation only.
  *
  * Reads the complete bundle from Blob (saved by Stage 2), calls Anthropic
- * Claude to produce Markdown + structured JSON, renders the Word doc, uploads
- * to Vercel Blob, updates DB with the verdict, and posts to Slack.
+ * Claude to produce Markdown + structured JSON, saves the eval to Blob,
+ * updates the DB with the verdict, and triggers Stage 3b (render + Slack).
+ *
+ * Split out from the old combined Stage 3 because the LLM call alone can
+ * take 60–120s — keeping render + Slack in a separate function lets each
+ * stage fit comfortably under Vercel's per-function timeout.
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { evaluate } from "@/lib/evaluator/anthropic";
-import { renderAndUpload } from "@/lib/render/render";
-import { postCustomerReport } from "@/lib/slack";
-import { fetchJson } from "@/lib/stage-store";
-import { setCustomerReport, setCustomerStatus, logEvent, getCustomer } from "@/lib/db/queries";
+import { fetchJson, saveStageEval } from "@/lib/stage-store";
+import { setCustomerReport, setCustomerStatus, logEvent } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
-// Stage 3 is the longest-running: Anthropic LLM call (Opus can take 60–90s) +
-// docx render + Slack. We bump to 300s — Vercel's Fluid Compute on Hobby
-// supports up to ~800s on this project, so 300 is comfortably safe.
+// LLM is the longest step. Vercel's Fluid Compute on Hobby supports up to
+// ~800s on this project; 300s is comfortably safe for Sonnet (typically 30–60s)
+// and Opus (typically 60–120s).
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
+
+function triggerNextStage(url: string, body: unknown, label: string) {
+  const work = (async () => {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      console.log(`[stage-trigger] ${label} → ${url} status=${res.status}`);
+    } catch (e: any) {
+      console.error(`[stage-trigger] ${label} → ${url} failed:`, e?.message ?? e);
+    }
+  })();
+  waitUntil(work);
+}
 
 export async function POST(req: NextRequest, ctx: { params: { customer_id: string } }) {
   const customerId = ctx.params.customer_id;
@@ -30,16 +49,18 @@ export async function POST(req: NextRequest, ctx: { params: { customer_id: strin
     return NextResponse.json({ ok: false, error: "missing_bundle_url" }, { status: 400 });
   }
 
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${req.headers.get("host")}`;
+
   // Load the complete bundle (with comms)
   let bundle: any;
   try {
     bundle = await fetchJson(bundleUrl);
   } catch (e: any) {
-    await setCustomerStatus(customerId, "failed", `stage3_load: ${e.message}`);
-    await logEvent(customerId, "stage3_failed", { error: e.message });
-    return NextResponse.json({ ok: false, stage: "stage3_load", error: e.message }, { status: 500 });
+    await setCustomerStatus(customerId, "failed", `stage3a_load: ${e.message}`);
+    await logEvent(customerId, "stage3a_failed", { error: e.message });
+    return NextResponse.json({ ok: false, stage: "stage3a_load", error: e.message }, { status: 500 });
   }
-  await logEvent(customerId, "stage3_started", {});
+  await logEvent(customerId, "stage3a_started", {});
 
   // --- LLM evaluation -----------------------------------------------------
   let evalResult;
@@ -48,25 +69,12 @@ export async function POST(req: NextRequest, ctx: { params: { customer_id: strin
     await logEvent(customerId, "llm_eval_done", { markdown_chars: evalResult.markdown.length });
   } catch (e: any) {
     await setCustomerStatus(customerId, "failed", `evaluator: ${e.message}`);
-    await logEvent(customerId, "stage3_failed", { stage: "evaluator", error: e.message });
+    await logEvent(customerId, "stage3a_failed", { stage: "evaluator", error: e.message });
     return NextResponse.json({ ok: false, stage: "evaluator", error: e.message }, { status: 500 });
   }
 
-  // --- Render docx + upload to Blob ---------------------------------------
-  let render;
-  try {
-    render = await renderAndUpload({
-      cbCustomerId: customerId,
-      reportData: evalResult.reportData,
-      markdown: evalResult.markdown,
-    });
-    await logEvent(customerId, "docx_rendered", { bytes: render.bytes });
-  } catch (e: any) {
-    render = null;
-    await logEvent(customerId, "render_failed", { error: e.message });
-  }
-
-  // --- Update DB with the final verdict + blob URLs -----------------------
+  // --- Persist verdict + key flags in DB now (so the dashboard reflects ---
+  //    the analysis result even if Stage 3b lags or fails) ----------------
   const verdict = evalResult.reportData?.exec?.verdict_label?.toLowerCase()?.replace(/\s+/g, "_") ?? null;
   const verdictNorm: "icp" | "review" | "not_icp" | null =
     verdict === "icp" ? "icp"
@@ -81,39 +89,30 @@ export async function POST(req: NextRequest, ctx: { params: { customer_id: strin
     needs_am_call: !!evalResult.reportData?.exec?.recommended_action_label?.toLowerCase()?.includes("am"),
     verdict_one_line: evalResult.reportData?.exec?.driver ?? null,
     key_flags: keyFlags,
-    report_blob_docx_url: render?.docxUrl ?? null,
-    report_blob_json_url: render?.jsonUrl ?? null,
-    report_blob_md_url: render?.mdUrl ?? null,
-    status: "ready",
+    status: "processing",
     failure_reason: null,
   });
 
-  // --- Slack post ---------------------------------------------------------
+  // --- Save eval to Blob so Stage 3b can pick it up -----------------------
+  let evalUrls: { mdUrl: string; jsonUrl: string };
   try {
-    const cust = await getCustomer(customerId);
-    const slackRes = await postCustomerReport({
-      cbCustomerId: customerId,
-      bizName: cust?.biz_name ?? null,
-      amName: cust?.am_name ?? null,
-      verdict: verdictNorm,
-      needsAmCall: !!cust?.needs_am_call,
-      oneLine: cust?.verdict_one_line ?? null,
-      keyFlags,
+    evalUrls = await saveStageEval(customerId, {
       markdown: evalResult.markdown,
-      docxBlobUrl: render?.docxUrl ?? null,
+      reportData: evalResult.reportData,
     });
-    if (slackRes.ts) {
-      await setCustomerReport(customerId, {
-        slack_channel_id: process.env.SLACK_CHANNEL_ID ?? null,
-        slack_ts: slackRes.ts,
-      });
-    }
-    await logEvent(customerId, "slack_posted", { ts: slackRes.ts ?? null, posted: slackRes.posted, file_url: slackRes.fileUrl });
+    await logEvent(customerId, "stage3a_done", { md_url: evalUrls.mdUrl, json_url: evalUrls.jsonUrl });
   } catch (e: any) {
-    console.error("[stage3] slack post failed:", e.message);
-    await logEvent(customerId, "slack_failed", { error: e.message });
+    await setCustomerStatus(customerId, "failed", `stage3a_save: ${e.message}`);
+    await logEvent(customerId, "stage3a_failed", { stage: "save_eval", error: e.message });
+    return NextResponse.json({ ok: false, stage: "stage3a_save", error: e.message }, { status: 500 });
   }
 
-  await logEvent(customerId, "stage3_done", { verdict: verdictNorm });
-  return NextResponse.json({ ok: true, status: "ready", verdict: verdictNorm });
+  // --- Fire-and-forget Stage 3b (render + Slack) --------------------------
+  triggerNextStage(
+    `${baseUrl}/api/analyze/${customerId}/render`,
+    { bundle_url: bundleUrl, eval_md_url: evalUrls.mdUrl, eval_json_url: evalUrls.jsonUrl },
+    `stage3a→stage3b(${customerId})`,
+  );
+
+  return NextResponse.json({ ok: true, status: "stage3a_done", next: "render", verdict: verdictNorm });
 }
