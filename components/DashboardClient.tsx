@@ -33,8 +33,9 @@ function toIsoSafe(v: unknown): string {
 function fmtDate(iso: unknown): string {
   const s = toIsoSafe(iso);
   if (!s) return "—";
+  // Date-only — time is noise in the table view
   try {
-    return new Date(s).toISOString().slice(0, 16).replace("T", " ") + "Z";
+    return new Date(s).toISOString().slice(0, 10);
   } catch {
     return "—";
   }
@@ -168,46 +169,63 @@ function AMBarChart({
 }
 
 /* ──────────────────────────────────────────────
-   SPARK TIMELINE — customers per day
+   LEAD PREDICTION TIERS — Module 02 Step 1.2 buckets
    ────────────────────────────────────────────── */
-function CreationTimeline({ data }: { data: { date: string; count: number }[] }) {
-  if (data.length === 0) {
-    return <div style={{ padding: "20px 8px", fontSize: 12, color: "#6B7280" }}>No customers yet.</div>;
-  }
-  const max = Math.max(1, ...data.map((d) => d.count));
-  const W = 280;
-  const H = 80;
-  const pad = 8;
-  const step = (W - pad * 2) / Math.max(data.length - 1, 1);
-  const pts = data.map((d, i) => {
-    const x = pad + i * step;
-    const y = H - pad - (d.count / max) * (H - pad * 2);
-    return { x, y, ...d };
-  });
-  const path = pts.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(" ");
-  const area = `${path} L ${pts[pts.length - 1].x} ${H - pad} L ${pts[0].x} ${H - pad} Z`;
+function LeadPredictionTiers({
+  data,
+  avg,
+}: {
+  data: { key: string; label: string; value: number; color: string }[];
+  avg: number | null;
+}) {
+  const total = data.reduce((a, b) => a + b.value, 0);
+  const r = 60;
+  const stroke = 22;
+  const C = 2 * Math.PI * r;
+  let acc = 0;
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H + 28}`} style={{ display: "block" }}>
-      <defs>
-        <linearGradient id="tl-grad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#EC4899" stopOpacity={0.18} />
-          <stop offset="100%" stopColor="#EC4899" stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      <path d={area} fill="url(#tl-grad)" />
-      <path d={path} fill="none" stroke="#EC4899" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
-      {pts.map((p, i) => (
-        <g key={i}>
-          <circle cx={p.x} cy={p.y} r={3} fill="#EC4899" />
-          <title>{p.date}: {p.count} customer{p.count !== 1 ? "s" : ""}</title>
-        </g>
-      ))}
-      {pts.map((p, i) => (
-        <text key={`l${i}`} x={p.x} y={H + 14} textAnchor="middle" fontSize={9} fill="#6B7280">
-          {p.date.slice(5)}
-        </text>
-      ))}
-    </svg>
+    <div>
+      <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: 170 }}>
+        <svg width={160} height={160} viewBox="0 0 180 180">
+          <circle cx={90} cy={90} r={r} fill="none" stroke="#F3F4F6" strokeWidth={stroke} />
+          {total === 0 ? null : data.map((d) => {
+            if (d.value === 0) return null;
+            const pct = d.value / Math.max(total, 1);
+            const len = pct * C;
+            const offset = -acc * C;
+            acc += pct;
+            return (
+              <circle
+                key={d.key}
+                cx={90}
+                cy={90}
+                r={r}
+                fill="none"
+                stroke={d.color}
+                strokeWidth={stroke}
+                strokeDasharray={`${len} ${C - len}`}
+                strokeDashoffset={offset}
+                transform="rotate(-90 90 90)"
+              />
+            );
+          })}
+        </svg>
+        <div style={{ position: "absolute", textAlign: "center", pointerEvents: "none" }}>
+          <div style={{ fontSize: 11, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5 }}>Avg leads</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "#0A2540", lineHeight: 1.1 }}>{avg ?? "—"}</div>
+          <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>predicted / 6mo</div>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6, marginTop: 12 }}>
+        {data.map((d) => (
+          <div key={d.key} className="flex items-center gap-2 text-xs">
+            <span style={{ display: "inline-block", width: 8, height: 8, background: d.color, borderRadius: 2 }} />
+            <span className="text-ink-muted">{d.label}</span>
+            <span className="ml-auto text-ink-dim tabular-nums">{d.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -352,22 +370,38 @@ export default function DashboardClient({ customers }: { customers: Customer[] }
       .slice(0, 6);
   }, [customers]);
 
-  // Daily timeline (last 14 days)
-  const timeline = useMemo(() => {
-    const days: Record<string, number> = {};
-    const now = new Date();
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
-      days[key] = 0;
-    }
+  // Module 02 Step 1.2 lead prediction tiers
+  // Autofail <30 · Possible 30–60 · Likely >60 · Unknown (null)
+  const leadTiers = useMemo(() => {
+    const buckets = { autofail: 0, possible: 0, likely: 0, unknown: 0 };
+    let sum = 0;
+    let n = 0;
     for (const c of customers) {
-      const iso = toIsoSafe(c.cb_created_at);
-      const k = iso ? iso.slice(0, 10) : "";
-      if (k && k in days) days[k]++;
+      const v = c.predicted_6_month_leads;
+      if (v == null) {
+        buckets.unknown++;
+      } else if (v < 30) {
+        buckets.autofail++;
+        sum += v;
+        n++;
+      } else if (v <= 60) {
+        buckets.possible++;
+        sum += v;
+        n++;
+      } else {
+        buckets.likely++;
+        sum += v;
+        n++;
+      }
     }
-    return Object.entries(days).map(([date, count]) => ({ date, count }));
+    const data = [
+      { key: "autofail", label: "Autofail (<30)", value: buckets.autofail, color: "#EF4444" },
+      { key: "possible", label: "Possible (30–60)", value: buckets.possible, color: "#F59E0B" },
+      { key: "likely", label: "Likely (>60)", value: buckets.likely, color: "#10B981" },
+      { key: "unknown", label: "Unknown", value: buckets.unknown, color: "#CBD5E1" },
+    ];
+    const avg = n > 0 ? Math.round(sum / n) : null;
+    return { data, avg };
   }, [customers]);
 
   // Filtered + sorted rows
@@ -487,8 +521,11 @@ export default function DashboardClient({ customers }: { customers: Customer[] }
           <AMBarChart data={amCounts} selectedAm={selectedAm} onSelectAm={setSelectedAm} />
         </div>
         <div className="rounded-2xl border border-line bg-surface p-5">
-          <div className="text-xs text-ink-dim uppercase tracking-wide font-medium mb-3">Creation timeline (14d)</div>
-          <CreationTimeline data={timeline} />
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs text-ink-dim uppercase tracking-wide font-medium">Lead prediction tiers</div>
+            <div className="text-[10px] text-ink-faint">Module 02 · Step 1.2</div>
+          </div>
+          <LeadPredictionTiers data={leadTiers.data} avg={leadTiers.avg} />
         </div>
       </section>
 
@@ -516,11 +553,22 @@ export default function DashboardClient({ customers }: { customers: Customer[] }
       {/* TABLE */}
       <section className="rounded-2xl border border-line bg-surface overflow-hidden anim-rise" style={{ animationDelay: "0.32s" }}>
         <table className="w-full text-sm">
+          <colgroup>
+            <col style={{ width: "108px" }} />
+            <col />
+            <col />
+            <col style={{ width: "130px" }} />
+            <col style={{ width: "130px" }} />
+            <col style={{ width: "150px" }} />
+            <col style={{ width: "130px" }} />
+            <col style={{ width: "140px" }} />
+          </colgroup>
           <thead className="bg-elevated text-ink-dim uppercase tracking-wide text-xs">
             <tr>
               <th className="text-left px-4 py-3 font-medium">Created</th>
               <th className="text-left px-4 py-3 font-medium">Customer</th>
               <th className="text-left px-4 py-3 font-medium">Email</th>
+              <th className="text-left px-4 py-3 font-medium">AE</th>
               <th className="text-left px-4 py-3 font-medium">AM</th>
               <th className="text-left px-4 py-3 font-medium">Scope</th>
               <th className="text-left px-4 py-3 font-medium">Verdict</th>
@@ -530,7 +578,7 @@ export default function DashboardClient({ customers }: { customers: Customer[] }
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="text-center py-12 text-ink-faint">
+                <td colSpan={8} className="text-center py-12 text-ink-faint">
                   No customers match the current filters. <button onClick={() => { setVerdictFilter("all"); setSelectedAm(null); setSearch(""); }} className="text-accent-blue hover:underline">Clear filters</button>
                 </td>
               </tr>
@@ -542,8 +590,9 @@ export default function DashboardClient({ customers }: { customers: Customer[] }
                   <div className="font-semibold text-ink">{c.biz_name ?? "(no biz)"}</div>
                   <div className="text-xs text-ink-dim font-mono">{c.cb_customer_id}</div>
                 </td>
-                <td className="px-4 py-3 text-ink-muted">{c.email ?? "—"}</td>
-                <td className="px-4 py-3 text-ink-muted">{c.am_name ?? "—"}</td>
+                <td className="px-4 py-3 text-ink-muted truncate">{c.email ?? "—"}</td>
+                <td className="px-4 py-3 text-ink-muted whitespace-nowrap">{c.ae_name ?? "—"}</td>
+                <td className="px-4 py-3 text-ink-muted whitespace-nowrap">{c.am_name ?? "—"}</td>
                 <td className="px-4 py-3"><ScopeChip scope={c.scope} /></td>
                 <td className="px-4 py-3"><VerdictPill c={c} /></td>
                 <td className="px-4 py-3 text-right">
