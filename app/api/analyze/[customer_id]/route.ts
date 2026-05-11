@@ -24,7 +24,7 @@ import { buildBundle } from "@/lib/validator/bundle";
 import { evaluate } from "@/lib/evaluator/anthropic";
 import { renderAndUpload } from "@/lib/render/render";
 import { postCustomerReport } from "@/lib/slack";
-import { setCustomerReport, setCustomerStatus, logEvent, getCustomer } from "@/lib/db/queries";
+import { setCustomerReport, setCustomerStatus, logEvent, getCustomer, upsertCustomerStub } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes — comms-CSV downloads + LLM call can take a while
@@ -79,18 +79,31 @@ export async function POST(_req: NextRequest, ctx: { params: { customer_id: stri
   const customerId = ctx.params.customer_id;
   if (!customerId) return NextResponse.json({ ok: false, error: "missing_customer_id" }, { status: 400 });
 
-  await logEvent(customerId, "analyze_started", {});
-
   // --- Step 1: build bundle ------------------------------------------------
   let bundle;
   try {
     bundle = await buildBundle(customerId);
-    await logEvent(customerId, "validator_done", { skip_reason: bundle.skip_reason, comms: bundle.comms_summary });
   } catch (e: any) {
-    await setCustomerStatus(customerId, "failed", `validator: ${e.message}`);
-    await logEvent(customerId, "failure", { stage: "validator", error: e.message });
     return NextResponse.json({ ok: false, stage: "validator", error: e.message }, { status: 500 });
   }
+
+  // Now that we have Chargebee customer data, ensure the customers row exists.
+  // /api/analyze can be invoked directly (test / backfill / retry) without a
+  // preceding webhook, so the customers row may not yet be present. Upsert here
+  // so all subsequent logEvent + setCustomerReport calls have a valid row.
+  const cbCustomer = bundle.chargebee_customer ?? {};
+  await upsertCustomerStub({
+    cb_customer_id: customerId,
+    email: cbCustomer.email ?? undefined,
+    first_name: cbCustomer.first_name ?? undefined,
+    last_name: cbCustomer.last_name ?? undefined,
+    biz_name: cbCustomer.cf_entity_name ?? cbCustomer.company ?? undefined,
+    cb_created_at: new Date(bundle.t_chargebee_unix * 1000).toISOString(),
+    cb_channel: cbCustomer.channel ?? undefined,
+    cb_payment_method: cbCustomer.payment_method?.type ?? undefined,
+  });
+  await logEvent(customerId, "analyze_started", {});
+  await logEvent(customerId, "validator_done", { skip_reason: bundle.skip_reason, comms: bundle.comms_summary });
 
   const scope = deriveScope(bundle);
   if (scope !== "discovery_first_pay") {

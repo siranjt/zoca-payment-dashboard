@@ -169,10 +169,16 @@ export async function logEvent(
   kind: string,
   detail?: Record<string, unknown>,
 ) {
-  await sql`
-    INSERT INTO events (cb_customer_id, kind, detail)
-    VALUES (${cbCustomerId}, ${kind}, ${JSON.stringify(detail ?? {})}::jsonb)
-  `;
+  try {
+    await sql`
+      INSERT INTO events (cb_customer_id, kind, detail)
+      VALUES (${cbCustomerId}, ${kind}, ${JSON.stringify(detail ?? {})}::jsonb)
+    `;
+  } catch (e: any) {
+    // Events are best-effort audit; never let a failed insert block the pipeline.
+    // Most common cause: FK violation when customer row doesn't exist yet.
+    console.error(`[logEvent] failed for ${cbCustomerId}/${kind}:`, e?.message ?? e);
+  }
 }
 
 /**
