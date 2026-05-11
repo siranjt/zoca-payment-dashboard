@@ -3,10 +3,402 @@
 @tailwind utilities;
 
 :root {
-  --foreground: 30 41 59;
-  --background: 248 249 251;
+  color-scheme: light;
 }
 
-html, body { font-family: Inter, system-ui, sans-serif; }
+html,
+body {
+  background: linear-gradient(180deg, #fcf3f8 0%, #f9fafc 30%, #ffffff 100%);
+  color: #0a2540;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
-table tbody tr:nth-child(even) { background-color: rgb(248 249 251); }
+/* Subtle ambient glow at top edges */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 30% 0%, rgba(236, 72, 153, 0.08), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 90% 20%, rgba(45, 91, 255, 0.05), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 10% 70%, rgba(139, 92, 246, 0.04), transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+main,
+header,
+footer {
+  position: relative;
+  z-index: 1;
+}
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Hero gradient text — blue → purple → pink */
+.text-pink-gradient,
+.text-pink-shimmer {
+  background: linear-gradient(135deg, #2d5bff 0%, #8b5cf6 50%, #ec4899 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.text-pink-shimmer {
+  animation: shimmer-text 4s linear infinite;
+}
+
+/* Light scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #dde3f0;
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #c1c8d4;
+}
+
+/* Loading-state animations */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer-text {
+  0% {
+    background-position: 0% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes letter-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dot-in {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes count-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-pink {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(236, 72, 153, 0);
+  }
+  50% {
+    box-shadow: 0 0 24px 0 rgba(236, 72, 153, 0.18);
+  }
+}
+
+@keyframes pulse-green {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+  50% {
+    box-shadow: 0 0 30px 0 rgba(16, 185, 129, 0.2);
+  }
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes header-twinkle {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes ripple-anim {
+  to {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+
+@keyframes float-spark {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.6);
+  }
+  30% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 0), var(--dy, -30px)) scale(1.1);
+  }
+}
+
+@keyframes spark-up {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.6);
+  }
+  30% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-60px) scale(1);
+  }
+}
+
+@keyframes confetti-fly {
+  to {
+    transform: translate(var(--dx), var(--dy)) rotate(var(--rot));
+    opacity: 0;
+  }
+}
+
+@keyframes chip-pop {
+  0% {
+    transform: scale(0.85);
+  }
+  60% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes num-flash {
+  0% {
+    color: #ec4899;
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes rotate-border {
+  to {
+    --angle: 360deg;
+  }
+}
+
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes shimmer-skel {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes shimmer-bar {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-spin-slow {
+  animation: spin 0.8s linear infinite;
+}
+
+.animate-shimmer-skel {
+  background: linear-gradient(
+    90deg,
+    rgba(10, 37, 64, 0.04) 0%,
+    rgba(10, 37, 64, 0.10) 50%,
+    rgba(10, 37, 64, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-skel 1.6s linear infinite;
+}
+
+.animate-shimmer-bar {
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    rgba(139, 92, 246, 0.15) 25%,
+    rgba(236, 72, 153, 0.12) 50%,
+    rgba(139, 92, 246, 0.15) 75%,
+    #ffffff 100%
+  );
+  background-size: 300% 100%;
+  animation: shimmer-bar 3s linear infinite;
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  animation: live-pulse 2s infinite;
+  display: inline-block;
+}
+
+.header-spark {
+  position: absolute;
+  opacity: 0.5;
+  animation: header-twinkle 3s ease-in-out infinite;
+}
+
+.breathe-pink {
+  animation: pulse-pink 2.4s ease-in-out infinite;
+}
+
+.breathe-green {
+  animation: pulse-green 3s ease-in-out infinite;
+}
+
+.active-conic-border {
+  position: relative;
+}
+.active-conic-border::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--angle, 0deg), #ec4899, #2d5bff, #8b5cf6, #ec4899);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: rotate-border 3s linear infinite;
+  pointer-events: none;
+}
+
+.ambient-spark {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: spark-up 2s linear forwards;
+}
+
+/* ─────────────────────────────────────────────
+   Print stylesheet — light theme is already PDF-friendly,
+   just hide chrome and ensure colour fidelity.
+   ───────────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4;
+    margin: 1.5cm 1.2cm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #0a2540 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body::before {
+    display: none !important;
+  }
+
+  .ambient-spark,
+  .header-spark,
+  .live-dot {
+    display: none !important;
+  }
+
+  /* Cards: keep white surface, lighter border, no glow */
+  [class*='bg-surface'],
+  [class*='bg-elevated'],
+  [class*='backdrop-blur'] {
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    border-color: #e3e5ea !important;
+    box-shadow: none !important;
+  }
+
+  /* Hero shimmer freezes to a solid pink in print so it doesn't washed-out animate */
+  .text-pink-shimmer,
+  .text-pink-gradient {
+    background: none !important;
+    -webkit-text-fill-color: #ec4899 !important;
+    color: #ec4899 !important;
+  }
+
+  /* Remove animations in print */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    transition-duration: 0s !important;
+  }
+
+  header.print\:hidden,
+  footer.print\:hidden,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  ol.max-h-\[28rem\] {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  section,
+  [class*='rounded-2xl'] {
+    page-break-inside: avoid;
+  }
+}
