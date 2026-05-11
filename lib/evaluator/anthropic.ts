@@ -20,7 +20,15 @@ import type { Bundle } from "@/lib/validator/bundle";
 const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
 const MAX_TOKENS = 12_000;
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? "" });
+// CRITICAL: disable SDK retries. The default is 2 retries, which on a
+// timeout-triggered retry burns 3× the per-request timeout (we saw 151s for a
+// "50s timeout" because the SDK silently retried twice). Fail fast instead —
+// our eval-level retry on JSON-parse failure handles transient errors at a
+// higher level.
+const client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY ?? "",
+  maxRetries: 0,
+});
 
 export type EvalResult = {
   markdown: string;        // the full Markdown analysis (Verdict + Key flags + Check-by-check + ...)
@@ -54,11 +62,12 @@ function extractMarkdown(raw: string): string {
   return idx === -1 ? raw.trim() : raw.slice(0, idx).trim();
 }
 
-// Hard cap on a single LLM round-trip. Set well below Vercel's 60s function
-// timeout so the SDK aborts (throwing a recognizable error we can log)
-// BEFORE Vercel hard-kills the function with no chance to log anything.
-// Override via ANTHROPIC_TIMEOUT_MS.
-const REQUEST_TIMEOUT_MS = Number(process.env.ANTHROPIC_TIMEOUT_MS ?? 50_000);
+// Hard cap on a single LLM round-trip. Sized to fit comfortably inside
+// Vercel's Fluid-Compute budget (~300s minus ~60s bundle = ~240s left for LLM
+// + render + slack). 180s gives Sonnet plenty of room (typical: 40–90s).
+// Override via ANTHROPIC_TIMEOUT_MS. maxRetries=0 in the client config means
+// timeouts fail immediately rather than spawning 2 silent retries.
+const REQUEST_TIMEOUT_MS = Number(process.env.ANTHROPIC_TIMEOUT_MS ?? 180_000);
 
 async function callOnce(systemPrompt: string, userPrompt: string): Promise<string> {
   const t0 = Date.now();
