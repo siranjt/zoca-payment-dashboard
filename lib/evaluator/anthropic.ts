@@ -54,15 +54,33 @@ function extractMarkdown(raw: string): string {
   return idx === -1 ? raw.trim() : raw.slice(0, idx).trim();
 }
 
+// Hard cap on a single LLM round-trip. Set well below Vercel's 60s function
+// timeout so the SDK aborts (throwing a recognizable error we can log)
+// BEFORE Vercel hard-kills the function with no chance to log anything.
+// Override via ANTHROPIC_TIMEOUT_MS.
+const REQUEST_TIMEOUT_MS = Number(process.env.ANTHROPIC_TIMEOUT_MS ?? 50_000);
+
 async function callOnce(systemPrompt: string, userPrompt: string): Promise<string> {
-  const res = await client.messages.create({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userPrompt }],
-  });
-  // Concatenate all text blocks
-  return res.content.map((b: any) => b.type === "text" ? b.text : "").join("");
+  const t0 = Date.now();
+  try {
+    const res = await client.messages.create(
+      {
+        model: MODEL,
+        max_tokens: MAX_TOKENS,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
+      },
+      { timeout: REQUEST_TIMEOUT_MS },
+    );
+    const elapsed = Date.now() - t0;
+    console.log(`[llm] model=${MODEL} elapsed_ms=${elapsed} stop=${res.stop_reason}`);
+    // Concatenate all text blocks
+    return res.content.map((b: any) => b.type === "text" ? b.text : "").join("");
+  } catch (e: any) {
+    const elapsed = Date.now() - t0;
+    console.error(`[llm] FAILED model=${MODEL} elapsed_ms=${elapsed} err=${e?.message ?? e}`);
+    throw new Error(`llm_call: ${e?.message ?? String(e)} (elapsed ${elapsed}ms, model ${MODEL})`);
+  }
 }
 
 /**

@@ -63,14 +63,25 @@ export async function POST(req: NextRequest, ctx: { params: { customer_id: strin
   await logEvent(customerId, "stage3a_started", {});
 
   // --- LLM evaluation -----------------------------------------------------
+  // Log a checkpoint BEFORE the LLM call so we can prove we reached this line
+  // even if the function gets hard-killed by Vercel before evaluate() returns.
+  await logEvent(customerId, "llm_call_starting", {
+    model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
+    bundle_keys: Object.keys(bundle ?? {}).slice(0, 20),
+  });
+  const llmT0 = Date.now();
   let evalResult;
   try {
     evalResult = await evaluate({ bundle });
-    await logEvent(customerId, "llm_eval_done", { markdown_chars: evalResult.markdown.length });
+    await logEvent(customerId, "llm_eval_done", {
+      markdown_chars: evalResult.markdown.length,
+      elapsed_ms: Date.now() - llmT0,
+    });
   } catch (e: any) {
+    const elapsed = Date.now() - llmT0;
     await setCustomerStatus(customerId, "failed", `evaluator: ${e.message}`);
-    await logEvent(customerId, "stage3a_failed", { stage: "evaluator", error: e.message });
-    return NextResponse.json({ ok: false, stage: "evaluator", error: e.message }, { status: 500 });
+    await logEvent(customerId, "stage3a_failed", { stage: "evaluator", error: e.message, elapsed_ms: elapsed });
+    return NextResponse.json({ ok: false, stage: "evaluator", error: e.message, elapsed_ms: elapsed }, { status: 500 });
   }
 
   // --- Persist verdict + key flags in DB now (so the dashboard reflects ---
