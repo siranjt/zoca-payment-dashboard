@@ -20,6 +20,18 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const out: any = {
     ok: true,
+    // Build fingerprint — proves WHICH deployment is serving traffic. If the
+    // commit_sha here doesn't match your latest git push, the new code is not
+    // live yet (Vercel build still in progress, or production alias hasn't
+    // moved to the latest deployment).
+    deploy: {
+      commit_sha: process.env.VERCEL_GIT_COMMIT_SHA ?? "(unset)",
+      commit_msg: process.env.VERCEL_GIT_COMMIT_MESSAGE ?? "(unset)",
+      branch: process.env.VERCEL_GIT_COMMIT_REF ?? "(unset)",
+      env_name: process.env.VERCEL_ENV ?? "(unset)",
+      deployment_url: process.env.VERCEL_URL ?? "(unset)",
+      region: process.env.VERCEL_REGION ?? "(unset)",
+    },
     env: {
       // Which env var actually provided the connection string. Don't leak
       // the URL itself — just which name was used.
