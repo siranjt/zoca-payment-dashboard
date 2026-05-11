@@ -1,0 +1,397 @@
+{
+  "_doc": "Be Beauty Studio worked example. Mirrors the canonical hand-built Word doc. Produced by `node render_report.js report_schema.example.json out.docx`.",
+
+  "meta": {
+    "classification_banner": "ZOCA · CONFIDENTIAL",
+    "title": "Post-Payment Account Review",
+    "subtitle": "ICP Fit Assessment & Post-Payment Pointer Analysis",
+    "subject_account": "Be Beauty Studio (Cristina Sousa)",
+    "header_text": "Zoca · Confidential — Post-Payment Account Review · Be Beauty Studio"
+  },
+
+  "exec": {
+    "verdict_label": "Not ICP",
+    "verdict_status": "FAIL",
+    "recommended_action_label": "AM-led recovery or refund within 7 days",
+    "driver": "predicted_6_month_leads = 26 falls under the 30-lead non-ICP floor → automatic Step-1 fail under Module 02.",
+    "reinforcing_flags": "13 reviews at onboarding (Module 02 disqualifier threshold is < 20); GBP opening date unverifiable in current data sources; Step-2 Rule B (annual revenue ≥ $100K) was never asked at sale; six open tickets logged within 30 days as of day 1; the Google Meet demo content is not auditable.",
+    "mitigating_factors": "booking-platform gate passes (GlossGenius, one of Module 02's five qualifying platforms, is Active); 5.00 average rating (all 13 reviews are five-star); no sales-pushiness signals; no financial-fragility signals; payment processed cleanly with no discount applied.",
+    "summary_paragraphs": [
+      "Be Beauty Studio is a single-location waxing and brow studio in Fairfield, CT, operated by Cristina Sousa. The account paid for Discovery Agent on 2026-05-07 at $600 per quarter ($200/month equivalent). The customer self-onboarded via the Zoca application; a Zoca account executive then placed two outbound phone calls on the same day before payment, both of which the rep used for scheduling and tech-coordination rather than ICP qualification.",
+      "Applied against the canonical Module 02 ICP framework, the account fails Step 1.2 (six-month lead-prediction gate) automatically. The model output predicted_6_month_leads = 26 sits below the 30-lead Non-ICP floor confirmed by Sales Ops. Module 02's binary rule applies: any single failure in Step 1 or Step 2 = Not ICP. The booking-platform gate (Step 1.3) does pass — Be Beauty Studio is on GlossGenius — but a Step-1.3 pass cannot rescue a Step-1.2 automatic fail.",
+      "Reinforcing flags compound the verdict. Module 02 names a < 20 review-count disqualifier; Be Beauty Studio sits at 13 reviews at onboarding (despite an exceptional 5.00 average). Google Business Profile (GBP) opening-date verification is currently a data gap — the entity is not synced to gbp.locations, and the gbp.reviews table is not configured in the validator. The single-location-plus-solo Rule B (annual revenue ≥ $100K) was never asked at the point of sale. Six support tickets exist in the 30-day window as of day 1 of the customer's relationship with Zoca.",
+      "Cristina's verbatim words on the discovery call were: \"I don't love the app… I want to see how it works and the costs for…\" The rep promised a 15-minute Google Meet covering product walk-through, lead prediction, and a business analysis. The Google Meet content is not captured in any data source, so the substantive demo is not auditable. A 74-second outbound phone call at 22:30 UTC shows the rep helping Cristina rejoin the meeting after a connection issue. Cristina paid 60 minutes after the rejoin call. The customer paid based on expectations the rep set, not on auditable value the rep delivered.",
+      "The Module 02 doctrine for this profile is unambiguous: under the \"BE HONEST. FULL STOP.\" value, the account manager (Shruti Sinha) must contact Cristina within 7 days, run the qualification the AE skipped, and either recover the account cleanly (verified revenue ≥ $100K and a real lead pipeline that beats the model projection of 26) or issue a refund and set a re-entry trigger. Given that the lead-prediction figure is in the auto-fail tier, a refund is the most likely Module-02-correct outcome."
+    ],
+    "net_retention_picture": "Account does not meet ICP threshold under Module 02. Recommended action is AM-led requalification within 7 days, followed by retain (if Rule B and lead-pipeline checks confirm) or refund within 14 days.",
+    "likely_outcome": "refund and re-entry trigger. The auto-fail tier on Step 1.2 is the decisive gate; the booking-platform pass on Step 1.3 cannot rescue it."
+  },
+
+  "section1": {
+    "subject_table": [
+      ["Subject identifier", "Value"],
+      ["Business name", "Be Beauty Studio"],
+      ["Owner / decision-maker", "Cristina Sousa"],
+      ["Primary category (BaseSheet)", "Waxing hair removal service"],
+      ["Location", "166 Halley Avenue, Fairfield, CT 06825 (residential address)"],
+      ["Chargebee customer ID", "16A2rRVIyq4cQjAV"],
+      ["Stripe customer ID", "cus_UTYVtzBwdkRKEk"],
+      ["Zoca entity ID", "9d830e96-9e15-446f-92aa-a7e4eb83ec34"],
+      ["First Discovery payment", "2026-05-07 at 23:31:25 UTC; $600.00 USD; Apple Pay via Stripe"],
+      ["Subscription SKU", "Discovery-Agent-USD-Every-3-months (quarterly billing; next bill 2026-08-04)"],
+      ["Account executive (sale)", "Chandan Gowda (per BaseSheet ae_name)"],
+      ["Account manager (post-sale)", "Shruti Sinha (per BaseSheet am_name)"]
+    ],
+    "data_sources_table": [
+      ["Data source", "Type", "Used for"],
+      ["Chargebee API", "Live REST", "Customer record, subscription, invoice, payment status, customer.created_at timestamp"],
+      ["Stripe API", "Live REST", "Customer record by email, customer.created timestamp, payment-method status, transaction record"],
+      ["Metabase BaseSheet", "CSV (87763e8c)", "Entity ID, business name, AE/AM, primary category, lead-source label, churn flags, ticket counts, missed-payment flags, predicted_6_month_leads"],
+      ["Metabase comms — App Chat / Email / Phone / SMS / Video", "CSV (5 endpoints)", "All inbound and outbound communications tied to entity ID, filtered to the 90-day window before T_created"],
+      ["Booking platform CSV", "CSV (4d3a953e)", "Verifies Step-1.3 booking-platform gate by entity ID; identifies linked social media accounts"],
+      ["Business opening date CSV", "CSV (8b6f5349)", "Verifies GBP age disqualifier (Open Info → Opening Date → Year/Month/Day) by entity ID"],
+      ["Review metrics CSV", "CSV (88a7ea2a)", "predicted_6_month_leads, total_reviews_at_onboarding, avg_rating_at_onboarding, review_target, pre-onboard GBP profile clicks"],
+      ["Fireflies", "MCP", "Demo / discovery transcript matching by participant email or business name within 90-day window"],
+      ["HubSpot", "MCP", "Lead source, deal stage, lifecycle stage, owner, contact properties"]
+    ]
+  },
+
+  "section3_risks": {
+    "intro": "This register catalogues the residual risks associated with allowing this account to remain on Discovery without remediation.",
+    "risks": [
+      { "id": "R1", "risk": "Day-90 churn", "likelihood": "FAIL", "impact": "FAIL", "driver_mitigation": "Lead-prediction in auto-fail tier; demo content not delivered; quarterly billing has no contractual lock. Mitigation: AM-led requalification + refund-or-recover by day 14." },
+      { "id": "R2", "risk": "Quantifiable revenue exposure", "likelihood": "FAIL", "impact": "WARN", "driver_mitigation": "Customer paid $600 USD. If churn occurs at day 90, the at-risk amount is the $600 invoice plus net cost-to-serve (estimated at multiples of the invoice for at-onboarding spend). Mitigation: refund within 14 days bounds the exposure to $600 plus cost-to-serve already incurred." },
+      { "id": "R3", "risk": "Process slip-through (skipped qualification)", "likelihood": "FAIL", "impact": "WARN", "driver_mitigation": "AE never asked Step-1.1 (device), Step-1.3 (platform — would have passed), Step-2 row, or Rule B (revenue). Pattern suggests a self-serve checkout path that bypasses ICP qualification. Mitigation: Section 7 organisational recommendations." },
+      { "id": "R4", "risk": "Brand / reputation if customer churns publicly", "likelihood": "WARN", "impact": "WARN", "driver_mitigation": "Customer's statement before payment — \"I don't love the app\" — combined with set-but-unauditable demo expectations indicates risk of negative review or social-media post if Day-30 outcomes do not meet promises." },
+      { "id": "R5", "risk": "Data integrity — entity record conflation", "likelihood": "WARN", "impact": "WARN", "driver_mitigation": "The GlossGenius URL on file is bebeautybytina.glossgenius.com (suggests a different operator), and the Instagram/Facebook handles linked to the entity are emilys.nails.spa / emilysnails.spa. The validator cannot rule out cross-entity data conflation. Mitigation: AM identity verification + data-engineering review." },
+      { "id": "R6", "risk": "GBP age disqualifier — currently unverifiable", "likelihood": "WARN", "impact": "WARN", "driver_mitigation": "Module 02 disqualifies GBPs less than approximately 3 months old. Be Beauty Studio is not present in the gbp.locations CSV (zero matches across 991 entities). The gbp.reviews fallback method is not currently configured. Mitigation: AM call closes; data-engineering pipeline gap to be addressed." },
+      { "id": "R7", "risk": "Category framework gap (waxing-only)", "likelihood": "WARN", "impact": "GAP", "driver_mitigation": "Module 02 carve-out list (threading-only, nails-only, eyelash-only, braiders) does not literally include waxing-only, but the cost-to-serve / LTV reasoning that justifies the existing carve-outs applies with similar force. Future similar accounts will hit the same edge." }
+    ]
+  },
+
+  "section4_framework": {
+    "tier_application": "Be Beauty Studio: predicted_6_month_leads = 26 → Below-30 band → automatic Step-1 fail.",
+    "vertical_lock_text": "Primary category in BaseSheet: \"Waxing hair removal service.\" Public Facebook page (third-party-extracted; flagged for AM verification) suggests services include waxing, brows, and PMU. All in-vertical (beauty / wellness).",
+    "step1": [
+      { "gate": "1.1 Device (laptop or iPad in shop)", "status": "GAP", "evidence": "Question was not asked on either of the two phone calls placed before payment. No public-data corroboration available. Source: Metabase phone-call transcripts for entity 9d830e96-…ec34." },
+      { "gate": "1.2 Six-month lead prediction (tiered)", "status": "AUTOFAIL", "evidence": [
+        { "type": "para", "text": "predicted_6_month_leads = 26 (Source: review_metrics.csv, entity 9d830e96-…ec34; corroborated in BaseSheet for the same entity)." },
+        { "type": "para", "text": "Underlying inputs: 31 days of pre-onboard GBP signal — search clicks 81, map clicks 54 (sum = 135 profile clicks), plus 27 direction requests, 14 website clicks, 1 call click." },
+        { "type": "richpara", "runs": [{ "text": "26 falls below the 30-lead floor → Not ICP. Single decisive gate.", "bold": true, "color": "9C1B22" }] }
+      ]},
+      { "gate": "1.3 Booking platform on the qualifying five-platform list (Gloss Genius, Square, Mindbody, Fresha, Vagaro)", "status": "PASS", "evidence": [
+        { "type": "para", "text": "Source: booking_platform.csv, two relevant rows for entity 9d830e96-…ec34:" },
+        { "type": "para", "text": "(i) Platform Type = WEBSITE; Platform Name = GBP; Link = https://bebeautybytina.glossgenius.com/; Is Active = true." },
+        { "type": "para", "text": "(ii) Platform Type = BOOKING_PLATFORM; Platform Name = GLOSSGENIUS; Is Active = true." },
+        { "type": "richpara", "runs": [{ "text": "Caveat: the GlossGenius URL contains \"bebeautybytina\" (does not match the customer's first name \"Cristina\"); separately, the entity's social-media records on file carry handles \"emilys.nails.spa\" and \"emilysnails.spa.\" The validator cannot rule out cross-entity data conflation. The AM should verify the GlossGenius account is operated by Cristina before treating this as a confirmed pass.", "italics": true }] }
+      ]}
+    ],
+    "step1_conclusion": "Cannot pass. Step 1.2 is an automatic fail under the tier rule.",
+    "step2_row_label": "Single-location + solo (best-evidence read)",
+    "step2_row_evidence": [
+      "Evidence supporting single-location: one entity in BaseSheet; billing address 166 Halley Avenue, Fairfield, CT 06825 (single address).",
+      "Evidence supporting solo (suggestive, not definitive): personal Gmail used for Chargebee billing rather than a business domain; Apple Pay — a consumer-grade payment instrument; self-serve checkout via the Zoca application with no AE involvement at the point of decision; the residential billing address is typical of home-based studios; no employee references in any captured communication. A counter-signal: the public Facebook page reportedly uses \"we / team\" language, which could be marketing or could indicate help. Not decisive."
+    ],
+    "step2": [
+      { "rule": "Rule A — must NOT be in the four single-location carve-outs (threading-only, nails-only, eyelash-only, braiders)", "status": "BORDER", "evidence": "Waxing-only is not literally in the carve-out list. However, the cost-to-serve / LTV economics that justify the existing carve-outs apply to waxing-only single-location with similar force. This is a Sales Ops policy question and is flagged in Section 7 organisational recommendations." },
+      { "rule": "Rule B — annual revenue ≥ $100,000", "status": "GAP", "evidence": "Revenue was not asked at the point of sale. No revenue evidence is available in any captured source. The residential billing address (166 Halley Avenue), sole-proprietor operating profile (personal Gmail, Apple Pay, self-serve checkout), and a small lifetime review base (13) are circumstantial signals consistent with a sub-$100K operation, but cannot substitute for direct verification. The AM call must close." }
+    ],
+    "disqualifiers": [
+      { "label": "No GBP, or GBP less than approximately 3 months old", "status": "DG", "notes": "Be Beauty Studio is NOT present in the gbp.locations CSV (zero matches across 991 entities). The gbp.reviews fallback method is not currently configured in the validator. Pre-onboard metrics show 31 days of capture and 13 reviews, which establishes that the GBP existed at least 31 days ago, but does not confirm the > 3-month requirement. The AM call must close." },
+      { "label": "< 20 reviews or rating < 4 stars", "status": "MIXED", "notes": "review_metrics.csv: total_reviews_at_onboarding = 13 (< 20 → Module 02 disqualifier on count). avg_rating_at_onboarding = 5.00 (passes the rating gate). All 13 reviews are five-star — exceptional quality but Module 02 names the < 20 review-count threshold even when rating is strong." },
+      { "label": "Part-timer (1–2 days per week)", "status": "GAP", "notes": "Question was not asked at the point of sale." },
+      { "label": "Mobile / no fixed location", "status": "PASS", "notes": "Fixed address confirmed: 166 Halley Avenue, Fairfield, CT (residential, but fixed)." },
+      { "label": "Insufficient demand area", "status": "RISK", "notes": "Pre-onboard GBP demand: 135 profile clicks across 31 days (≈4.4/day) — meaningful absolute volume — but converted into only 26 predicted six-month leads, indicating thin lead-conversion at this trade area." },
+      { "label": "Wrong category, product business, MLM, or pure online", "status": "WARN", "notes": "Service business in vertical. Note: a public Facebook page review (third-party agent extraction; not authoritative) suggests services include PMU (Permanent Makeup), which Module 02 explicitly directs not to be pitched as ICP without Sales Ops confirmation. The AM should verify whether PMU is a primary or incidental service." },
+      { "label": "Employees with no plan to grow into ownership", "status": "PASS", "notes": "Cristina is the owner-operator." }
+    ],
+    "summary_table": [
+      { "layer": "Step 1 — three hard rules", "status": "FAIL", "detail": "1.1 device — not verified · 1.2 lead prediction — automatic fail (26 < 30) · 1.3 booking platform — pass (GlossGenius)" },
+      { "layer": "Step 2 — lead shape", "status": "FAIL", "detail": "Single-location + solo (best-evidence read). Rule A — borderline (waxing-only is not literally a carve-out but operationally adjacent). Rule B — not verified (revenue ≥ $100K never asked)." },
+      { "layer": "Additional disqualifiers", "status": "WARN", "detail": "One disqualifier triggered (review count < 20). One data gap (GBP age unverifiable). One caution (PMU on public services list — verify with Sales Ops)." },
+      { "layer": "Vertical lock", "status": "PASS", "detail": "Beauty and wellness vertical confirmed (waxing / brow services)." }
+    ],
+    "summary_takeaway": "any single failure in Step 1 OR Step 2 = Not ICP. Step 1.2 is the decisive failure. The booking-platform pass cannot rescue the gate.",
+    "one_line_blockquote": "Predicted_6_month_leads = 26 places Be Beauty Studio under the 30-lead Non-ICP floor — a Step-1 hard fail by itself. Reinforced by 13 < 20 reviews and an unverifiable GBP age. The booking-platform pass and exceptional rating are real positives but cannot rescue a Step-1 fail under Module 02."
+  },
+
+  "section5_pointers": [
+    {
+      "title": "Pointer 1 — Lead source",
+      "source": "BaseSheet (lead_source, lead_source_group); HubSpot search; phone-call transcript",
+      "signal": "Mislabeled — actual source is self-serve, not outbound",
+      "signal_status": "WARN",
+      "blocks": [
+        { "type": "bullet", "text": "BaseSheet entry: lead_source_group = \"Outbound\"; lead_source = \"outbound.\"" },
+        { "type": "bullet", "text": "HubSpot CRM: no record exists for cristinaddesousa@gmail.com on email exact-match." },
+        { "type": "bullet", "text": "Phone-call transcript at 16:55:58 UTC, the rep states verbatim:" },
+        { "type": "blockquote", "text": "\"I just saw that you self-onboarded yourself your business B-Beauty Studio.\"" },
+        { "type": "para", "text": "Cristina initiated by self-onboarding through the Zoca application; the AE called reactively. The \"outbound\" label in BaseSheet is downstream-of-self-serve, not a true outbound prospect. Implication: this is product-led / self-serve, not AE-sourced outbound. The two channels carry different retention profiles and should be tracked distinctly." }
+      ]
+    },
+    {
+      "title": "Pointer 2 — Content of all outreach tied to entity ID",
+      "source": "Metabase 5-channel CSVs filtered by entity_id 9d830e96-…ec34",
+      "signal": "Extremely sparse — three messages in 90 days",
+      "signal_status": "FAIL",
+      "blocks": [
+        { "type": "table", "columnWidths": [2400, 1500, 1500, 3960], "rows": [
+          ["Channel", "Inbound", "Outbound", "Note"],
+          ["App Chat", "0", "1", "Auto-welcome message from Zoca Support"],
+          ["Email", "0", "0", "Zero email exchanges in window"],
+          ["Phone Calls", "0", "2", "16:55 UTC discovery call (168 s) and 22:30 UTC tech-coordination call (74 s)"],
+          ["SMS", "0", "0", "None"],
+          ["Video Calls", "0", "0", "Google Meet demo content not captured in available sources (no Fireflies match)"],
+          [{ "value": "TOTAL", "bold": true }, { "value": "0", "bold": true }, { "value": "3", "bold": true }, { "value": "Three messages in 90-day window", "bold": true }]
+        ]},
+        { "type": "bullet", "text": "Effectively zero relationship-building before payment. Three messages, none substantive." },
+        { "type": "bullet", "text": "No customer-initiated communications in any channel — the customer was never given a structured forum to ask clarifying questions or raise concerns." }
+      ]
+    },
+    {
+      "title": "Pointer 3 — Communications before payment + Chargebee/Stripe timestamp validation",
+      "source": "Chargebee API customer.created_at; Stripe API customer.created; Metabase comms (cutoff)",
+      "signal": "Timestamps validated — 1-second delta; cycle 6 h 35 m",
+      "signal_status": "PASS",
+      "blocks": [
+        { "type": "table", "columnWidths": [3000, 3360, 3000], "rows": [
+          ["System", "Customer ID", "Created (UTC)"],
+          ["Chargebee", "16A2rRVIyq4cQjAV", "2026-05-07 23:31:25 (Unix 1778196685)"],
+          ["Stripe", "cus_UTYVtzBwdkRKEk", "2026-05-07 23:31:26 (Unix 1778196686)"],
+          [{ "value": "Δ (mismatch threshold = 24 h)", "bold": true }, { "status": "PASS" }, { "value": "1 second — well within threshold", "bold": true }]
+        ]},
+        { "type": "para", "text": "Cutoff used for the comms-before-payment filter: T_created = earliest(Chargebee, Stripe) = 2026-05-07 23:31:25 UTC. Window = 90 days back, ending at T_created." },
+        { "type": "bullet", "text": "First contact (any channel): 2026-05-07 16:55:58 UTC — Zoca-outbound phone call." },
+        { "type": "bullet", "text": "Payment: 2026-05-07 23:31:25 UTC." },
+        { "type": "richpara", "runs": [{ "text": "Sales cycle: ", "bold": true }, { "text": "6 hours, 35 minutes, 27 seconds. Same calendar day." }] },
+        { "type": "para", "text": "Implication: the cycle is dramatically below typical for SaaS at this price point. Combined with the self-onboard signal from Pointer 1, this confirms the customer had decided to buy before any rep engaged." }
+      ]
+    },
+    {
+      "title": "Pointer 4 — What happened on the demo call",
+      "source": "Phone-call transcripts (Metabase); Fireflies search (no transcript indexed)",
+      "signal": "Demo content not auditable; phone-coordination call only",
+      "signal_status": "FAIL",
+      "blocks": [
+        { "type": "h3", "text": "Call A — 16:55:58 UTC, 168 seconds (discovery call)" },
+        { "type": "blockquote", "text": "\"As a part of the process, what we do is that we actually provide you with a Google Meet call. It will hardly take us 15 minutes... we'll show you each and everything. We'll also do a lead prediction for you. Entire business analysis for you.\"", "attribution": "Zoca rep, 16:55 UTC" },
+        { "type": "para", "text": "Scope-setting call. No Step-1 questions asked: device check, booking platform check, lead-prediction surfacing from BaseSheet. A Google Meet was scheduled for 5:30 PM Eastern (21:30 UTC nominal)." },
+        { "type": "h3", "text": "Call B — 22:30:23 UTC, 74 seconds (tech-coordination phone call)" },
+        { "type": "blockquote", "text": "\"Hello? Hello. Hi, Christina. I think the problem has resolved now. You can just join in again... I tried a few times. I was like, maybe they're busy in another call. Let me wait a little bit... I see you over there. Just allow me a second. I'll admit you. Hi, Christina. nice to meet you...\"", "attribution": "Zoca rep, 22:30 UTC" },
+        { "type": "para", "text": "This 74-second exchange was a phone call helping Cristina rejoin the Google Meet after a connection issue. The Google Meet itself took place after the 22:30 UTC rejoin and is the actual demo session. The Google Meet content is NOT captured in available data sources — Fireflies search by participant email, business name, and date range returns zero indexed transcripts. The demo's substance and duration are not auditable." },
+        { "type": "h3", "text": "Promised vs. delivered" },
+        { "type": "table", "columnWidths": [4680, 4680], "rows": [
+          ["Promised on Call A (16:55 UTC)", "Delivered (Google Meet content)"],
+          ["\"15-minute Google Meet to help you understand what exactly we offer\"", "Not auditable — no Fireflies transcript captured. The 22:30 UTC phone call (74 s) was tech-coordination only."],
+          ["\"How exactly we are going to get you more customers on the full price of the service\"", "Not auditable"],
+          ["\"We'll show you each and everything\"", "Not auditable"],
+          ["\"Lead prediction for you\"", "Not auditable. Note: BaseSheet records predicted_6_month_leads = 26, which under the tier rule would have disqualified the lead at sale. Cristina was not provided this number."],
+          ["\"Entire business analysis\"", "Not auditable"]
+        ]},
+        { "type": "para", "text": "Implication: the demo content is unauditable. The customer paid 60 minutes after the rejoin call (60 minutes after 22:30 UTC), so the Google Meet itself was likely brief, but the validator cannot confirm what was demonstrated. This is the single most consequential evidence gap in the file." }
+      ]
+    },
+    {
+      "title": "Pointer 5 — Whether sales was pushy for first payment",
+      "source": "All comms in 7-day window before payment; closing-sequence transcripts",
+      "signal": "Not pushy — but rep severely under-delivered on the demo promise",
+      "signal_status": "PASS",
+      "blocks": [
+        { "type": "bullet", "text": "No urgency manufacturing — no \"only this week\" / \"limited time\" language anywhere." },
+        { "type": "bullet", "text": "No discount-as-pressure — invoice has $0.00 discount; line item is at full list price." },
+        { "type": "bullet", "text": "No customer hesitation rolled over — there is no hesitation in the captured transcripts to roll over." },
+        { "type": "para", "text": "The actual issue is not pushiness. It is under-delivery against expectations the rep set on Call A." }
+      ]
+    },
+    {
+      "title": "Pointer 6 — Customer financial status (if mentioned)",
+      "source": "Scan over all 5 comms channels in 90-day window for financial-distress markers",
+      "signal": "No financial-fragility signals captured",
+      "signal_status": "PASS",
+      "blocks": [
+        { "type": "bullet", "text": "Cash-flow language: none." },
+        { "type": "bullet", "text": "Card / payment difficulty: none. Apple Pay attached on first attempt; payment processed cleanly." },
+        { "type": "bullet", "text": "Layoff / paycut / personal financial language: none." },
+        { "type": "bullet", "text": "Pricing pushback: none captured." },
+        { "type": "para", "text": "Caveat: the unauditable Google Meet may contain financial-status discussion. The validator cannot rule this in or out." }
+      ]
+    },
+    {
+      "title": "Pointer 7 — Whether the customer fits ICP criteria (Module 02)",
+      "source": "Module 02; review_metrics.csv; booking_platform.csv; business_opening_date.csv; BaseSheet",
+      "signal": "Not ICP — automatic fail on Step 1.2 lead prediction (26 < 30)",
+      "signal_status": "FAIL",
+      "blocks": [
+        { "type": "para", "text": "This pointer cross-references Section 4 above, which contains the full Module 02 framework walkthrough. The summary verdict is that Be Beauty Studio fails Step 1 of the framework on the lead-prediction tier rule (predicted_6_month_leads = 26, which is in the Below-30 Non-ICP band). Reinforcing flags include the < 20 review-count disqualifier and the GBP-age data gap. The booking-platform gate (Step 1.3) does pass with GlossGenius." }
+      ]
+    },
+    {
+      "title": "Pointer 8 — Whether they intend to stay long term or short term",
+      "source": "Comms scan; billing cadence",
+      "signal": "No data — direction not stated",
+      "signal_status": "GAP",
+      "blocks": [
+        { "type": "bullet", "text": "Trial-language (\"try it for a month,\" \"see how it goes\"): not captured." },
+        { "type": "bullet", "text": "Contract length, cancellation, refund discussion: not captured." },
+        { "type": "bullet", "text": "Long-term commitment language (\"build a partnership,\" \"grow with you\"): not captured." },
+        { "type": "bullet", "text": "Billing cadence: Discovery-Agent-USD-Every-3-months — quarterly. Switching friction is lower than annual but higher than monthly. The customer can exit at day 90 at no contractual cost." }
+      ]
+    },
+    {
+      "title": "Pointer 9 — Customer short-term and long-term expectations",
+      "source": "Customer's stated need on Call A; rep's promised deliverables",
+      "signal": "Expectations were SET by the rep but NOT verifiably delivered",
+      "signal_status": "WARN",
+      "blocks": [
+        { "type": "h3", "text": "Customer's articulated need (Call A, 16:55 UTC)" },
+        { "type": "blockquote", "text": "\"I'm trying to see like, I don't love the app because I want to see like how it works and the costs for…\"", "attribution": "Cristina Sousa, 16:55 UTC" },
+        { "type": "bullet", "text": "Short-term ask: product walk-through and cost transparency." },
+        { "type": "bullet", "text": "Dissatisfaction declared verbatim before payment — \"I don't love the app.\" A meaningful retention-risk indicator." },
+        { "type": "bullet", "text": "She paid 6.5 hours later, despite never receiving the product walk-through. The customer paid based on documents and marketing she had previously seen during self-onboard, not on AE-delivered value." },
+        { "type": "h3", "text": "Rep's promised deliverables on Call A" },
+        { "type": "bullet", "text": "\"15-minute Google Meet\" — partially delivered (a meeting occurred, but content is not auditable)." },
+        { "type": "bullet", "text": "\"Help you understand what exactly we offer\" — auditability gap." },
+        { "type": "bullet", "text": "\"How exactly we are going to get you more customers on the full price of the service\" — auditability gap." },
+        { "type": "bullet", "text": "\"Lead prediction for you\" — auditability gap. Note: BaseSheet records predicted_6_month_leads = 26, which under the tier rule would have disqualified the lead at sale. Cristina was not given this number." },
+        { "type": "bullet", "text": "\"Entire business analysis\" — auditability gap." },
+        { "type": "para", "text": "Implication: expectations are sales-set, not customer-inflated. Whatever Discovery actually delivers in the next 90 days must clear the rep's promises (lead prediction, business analysis, customer acquisition). This is the largest single retention-risk vector on the account." }
+      ]
+    },
+    {
+      "title": "Pointer 10 — Potential retention red flags",
+      "source": "Synthesis of Pointers 1–9 and enrichment data",
+      "signal": "Multiple — elevated 90-day churn risk",
+      "signal_status": "FAIL",
+      "blocks": [
+        { "type": "table", "columnWidths": [400, 3000, 1500, 4460], "rows": [
+          ["ID", "Red flag", "Severity", "Why it matters"],
+          ["RF1", "predicted_6_month_leads = 26 in auto-fail tier", { "status": "FAIL" }, "Single decisive ICP failure under Module 02; account does not meet the criteria the framework was built to protect."],
+          ["RF2", "Skipped qualification at sale", { "status": "FAIL" }, "AE did not run Step 1.1 (device), Step 1.3 (platform — would have passed), Step 2 row identification, or Rule B (revenue) at sale."],
+          ["RF3", "Demo content not auditable", { "status": "FAIL" }, "Customer expectations were set on Call A (lead prediction, business analysis, product walk-through). The Google Meet has no captured transcript. Day-30 expectation alignment cannot be verified."],
+          ["RF4", "13 reviews at onboarding (below the 20-review disqualifier)", { "status": "WARN" }, "Reviews are the conversion lever per Module 02. Thin volume reduces conversion despite excellent rating."],
+          ["RF5", "6 open tickets in the last 30 days as of day 1", { "status": "WARN" }, "Indicates friction or misunderstanding has already occurred, before standard product use can have generated complaints."],
+          ["RF6", "GBP age cannot be verified through configured sources", { "status": "WARN" }, "Both verification methods are currently unavailable for this entity. Risk that the disqualifier (< 3 months) is true and undetected."],
+          ["RF7", "Borderline single-location category (waxing-only)", { "status": "WARN" }, "Operationally similar to threading-only carve-out. Cost-to-serve / LTV economics suggest framework gap. Future similar accounts at risk."],
+          ["RF8", "Quarterly billing — low switching friction", { "status": "WARN" }, "Customer can exit at day 90 without contractual penalty."],
+          ["RF9", "Dissatisfaction with the application expressed before payment", { "status": "WARN" }, "Customer's verbatim words on Call A: \"I don't love the app.\" Objection raised before payment and not resolved."],
+          ["RF10", "Cross-business data conflation risk", { "status": "WARN" }, "GlossGenius URL is bebeautybytina.glossgenius.com; Instagram and Facebook handles linked to the entity are emilys.nails.spa / emilysnails.spa. Identity verification required."],
+          ["RF11", "No HubSpot record; no Fireflies transcript", { "status": "WARN" }, "No internal pipeline paper trail. The AM cannot reconstruct the deal from CRM data alone."]
+        ]}
+      ]
+    },
+    {
+      "title": "Pointer 11 — Pricing / discount context",
+      "source": "Chargebee invoice 14111; line items; discounts_applied; Stripe transaction record",
+      "signal": "Clean — full list price, no discounts, clean payment",
+      "signal_status": "PASS",
+      "blocks": [
+        { "type": "kv", "rows": [
+          ["Plan / wrapper", "Zoca-Agents-USD-Every-3-months · $0.00"],
+          ["Discovery line item", "Discovery-Agent-USD-Every-3-months · $600.00 (paid quarterly = $200/month equivalent)"],
+          ["Total invoice (Chargebee invoice 14111)", "$600.00 USD"],
+          ["Discount applied", "$0.00 (discounts_applied: empty; line_item_discounts: empty; applied_credits: empty)"],
+          ["Payment method", "Apple Pay via Stripe (txn_id: txn_16A2rRVIyq4oAjAa, txn_status: success)"],
+          ["Tax", "$0.00 (tax_exempt_reason: tax_not_configured)"],
+          ["Billing cadence", "Every 3 months — quarterly. Next bill: 2026-08-04."]
+        ]},
+        { "type": "bullet", "text": "The customer mentioned cost on Call A: \"I want to see like how it works and the costs for…\"" },
+        { "type": "bullet", "text": "Cost discussion does not appear in any captured channel between that mention and payment. Either it occurred in the unauditable Google Meet or the customer self-checked-out at $600 without further discussion." },
+        { "type": "bullet", "text": "No discount-as-pressure dynamic. Pricing is clean." },
+        { "type": "bullet", "text": "The fact that the discount lever was NOT used at sale leaves the AM full pricing flexibility to deploy if Cristina hits a day-30 or day-60 churn moment." }
+      ]
+    }
+  ],
+
+  "section6_actions": {
+    "intro": "Five actions are required to bring this account into Module-02 compliance or to terminate it cleanly with a refund and a re-entry trigger.",
+    "actions": [
+      { "id": "A1", "action": "Schedule and run a 30-minute requalification call with Cristina. Cover Step 1.1 (device), Step 1.3 (platform — confirm GlossGenius identity match), Step 2 row, Rule B (revenue), GBP opening date, and PMU services question.", "owner": "Shruti Sinha (AM)", "deadline": "Within 7 days", "success_criterion": "Call completed; all six gaps closed; outcome documented in HubSpot." },
+      { "id": "A2", "action": "Investigate the six open tickets (BaseSheet open_tickets_last_30_days = 6). Categorise by issue type and resolve.", "owner": "Shruti Sinha (AM) + support team", "deadline": "Within 7 days", "success_criterion": "All tickets resolved or have an owner with ETA." },
+      { "id": "A3", "action": "Branch on outcome of A1. (a) If revenue ≥ $100K AND a real lead pipeline beats the 26-lead model projection, retain. Reset expectations and deliver the demo content that was promised. (b) If revenue is below $100K and customer is solo, refund and set re-entry trigger per Module 02 doctrine.", "owner": "Shruti Sinha (AM)", "deadline": "Within 14 days", "success_criterion": "Decision documented; refund issued or onboarding plan committed." },
+      { "id": "A4", "action": "Document the audit trail for this account in HubSpot, including AE qualification gaps, AM resolution, and final decision (retain / refund).", "owner": "Shruti Sinha (AM)", "deadline": "Within 14 days", "success_criterion": "HubSpot record exists with full notes." },
+      { "id": "A5", "action": "Verify the GlossGenius account at bebeautybytina.glossgenius.com is operated by Cristina Sousa. If not, escalate to data-engineering for entity-record correction.", "owner": "Shruti Sinha (AM) + Data Eng", "deadline": "Within 14 days", "success_criterion": "Identity confirmed; data record corrected if needed." }
+    ],
+    "am_script": "\"Cristina, I want to be straight with you. We took your payment yesterday but we owe you the actual qualification call we never ran. Couple of quick scope questions before we set anything up: laptop or iPad at the studio day-to-day? Just you for now, or anyone helping? And revenue-wise — under $100K, low six figures, more? And how long has your Google Business Profile been live?\"",
+    "am_script_attribution": "AM script, per Module 02 doctrine",
+    "branch_paragraphs": [
+      "Branch on Cristina's answers as documented in Action A3."
+    ]
+  },
+
+  "section7_systemic": {
+    "intro": "This account exposes systemic gaps that are likely to recur. Eight recommendations are proposed; ownership and priority are assigned.",
+    "recommendations": [
+      { "id": "S1", "recommendation": "Add an automated pre-checkout ICP qualification gate for self-serve onboarding flows. Block self-serve checkout when predicted_6_month_leads is in the auto-fail tier.", "owner": "Product + Engineering", "priority": "High", "rationale": "This account would have been blocked at the gate; the AE never had a chance to qualify." },
+      { "id": "S2", "recommendation": "Mandate a Step-1 / Step-2 qualification checklist on every AE-led discovery call before payment. Embed as a HubSpot deal-stage requirement.", "owner": "Sales Ops", "priority": "High", "rationale": "Skipped qualification is the failure mode that produced this account." },
+      { "id": "S3", "recommendation": "Resolve the gbp.locations sync gap. Investigate why entity 9d830e96-…ec34 is not present in the 991-entity table; ensure newly onboarded entities are synced.", "owner": "Data Engineering", "priority": "High", "rationale": "GBP age is a Module 02 disqualifier; current data gap means it cannot be enforced." },
+      { "id": "S4", "recommendation": "Configure the gbp.reviews fallback method in the Payment Validator to verify GBP age via earliest-review timestamp when gbp.locations is missing.", "owner": "Data Engineering + Validator owner", "priority": "High", "rationale": "Provides defence-in-depth on the GBP-age disqualifier." },
+      { "id": "S5", "recommendation": "Close the question: should waxing-only single-location be added to the four named carve-outs in Module 02? Sales Ops review and decision.", "owner": "Sales Ops + CRO", "priority": "Medium", "rationale": "Edge case will recur. Borderline-case reasoning today should become explicit policy." },
+      { "id": "S6", "recommendation": "Tighten Fireflies transcript indexing for Google Meet demos so post-payment audit can verify what was demonstrated and promised.", "owner": "Operations + Fireflies admin", "priority": "Medium", "rationale": "Demo content for this account is not auditable. Pattern likely affects other accounts." },
+      { "id": "S7", "recommendation": "Distinguish self-serve from AE-sourced lead source in BaseSheet and HubSpot. Update lead_source labelling logic — self-onboard followed by reactive AE call should not be tagged \"Outbound.\"", "owner": "Data Engineering + Marketing Ops", "priority": "Medium", "rationale": "Current label is misleading; affects retention modelling and channel attribution." },
+      { "id": "S8", "recommendation": "Resolve the entity-record conflation pattern (mismatched URL/social handles for a single entity). Audit similar cases.", "owner": "Data Engineering", "priority": "Medium", "rationale": "Cross-entity data quality issue undermines all downstream decisions." }
+    ]
+  },
+
+  "section8_gaps": {
+    "intro": "The following items cannot be resolved by the validator alone and must be closed by the AM call or by the systemic recommendations in Section 7.",
+    "items": [
+      "GBP opening date — neither of the two configured methods (gbp.locations CSV; gbp.reviews fallback) returns data for this entity.",
+      "Device in studio — laptop or iPad presence not asked at sale.",
+      "Solo vs. staff — best-evidence read is solo; not directly confirmed.",
+      "Annual business revenue — Module 02 single-location-plus-solo Rule B (≥ $100K) is unverified.",
+      "Cross-business identity — the GlossGenius URL bebeautybytina.glossgenius.com and Instagram/Facebook handles emilys.nails.spa / emilysnails.spa do not match the customer's name on file. Identity verification needed.",
+      "PMU service status — primary or incidental? Pending Sales Ops confirmation on whether PMU is ICP.",
+      "Six open tickets in the last 30 days — the cause and current status of each is unknown. Action A2 covers.",
+      "Google Meet demo content — not captured in available sources."
+    ]
+  },
+
+  "section9_evidence": {
+    "methodology_paragraphs": [
+      "This review was produced by the Zoca Payment Validator pipeline, which runs every 30 minutes and produces a structured analysis for each new Discovery first-payment customer. The pipeline is fully automated and follows a deterministic data-fetching stage followed by a structured LLM evaluation against the canonical Module 02 prompt.",
+      "Step 1 of the pipeline — deterministic data fetching — pulled the Chargebee customer record, located the matching Stripe customer by email, validated the timestamp parity, and confirmed first-ever-subscription status at the Chargebee customer-id level. Step 2 — enrichment — pulled the BaseSheet entity record, all five communications channels (App Chat, Email, Phone Calls, SMS, Video) filtered to entity_id with the 90-day window before payment, the booking-platform CSV, the business-opening-date CSV, the review-metrics CSV, the Fireflies transcript index, and the HubSpot CRM record. Step 3 — evaluation — applied the Module 02 prompt to the bundled evidence.",
+      "The validator does not invent data. Where a data source is unavailable for an entity, the analysis explicitly marks the field as a data gap rather than guessing. All claims in this report are footnoted to a specific data source — the source attribution is the first row of every per-section banner and is repeated inline where evidence is quoted.",
+      "Subjective judgements (for example, the inference of single-location-plus-solo from residential billing address + personal Gmail + Apple Pay) are explicitly labelled as best-evidence reads rather than confirmed facts. Confirmed facts use the source-cited evidence directly."
+    ],
+    "evidence_trail": [
+      "review_metrics.csv (Metabase 88a7ea2a) — one match for entity 9d830e96-…ec34: predicted_6_month_leads = 26; total_reviews_at_onboarding = 13; avg_rating_at_onboarding = 5.00; review_target = 2 per week; pre-onboard 31-day window: 81 search clicks, 54 map clicks, 27 directions, 14 website clicks, 1 call click.",
+      "booking_platform.csv (Metabase 4d3a953e) — five rows for entity: GBP website (Link to GlossGenius); BOOKING_PLATFORM = GLOSSGENIUS, Active; Instagram; Facebook; Google search. The last three carry handles emilys.nails.spa / emilysnails.spa (cross-entity conflation flag).",
+      "business_opening_date.csv (Metabase 8b6f5349) — zero matches for entity 9d830e96-…ec34 across 991 total entities.",
+      "BaseSheet entity row 9d830e96-9e15-446f-92aa-a7e4eb83ec34 — primary_category = Waxing hair removal service; ae_name = Chandan Gowda; am_name = Shruti Sinha; lead_source_group = Outbound; predicted_6_month_leads = 26; M0 / M-1 / M-2 / M-3 missed payments = 0 / 0 / 0 / 0; open_tickets_last_30_days = 6; churn_potential_flag = empty.",
+      "Pre-payment communications — one app chat (auto-welcome) and two outbound phone calls (168 s discovery; 74 s tech-coordination). No qualification questions asked across either call.",
+      "Public Facebook page — facebook.com/people/Be-Beauty-Studio/100089232337772/ — third-party-extracted services (waxing, brows, PMU). Flagged for AM verification.",
+      "Chargebee customer.created_at — 2026-05-07 23:31:25 UTC (Unix 1778196685).",
+      "Stripe customer.created — 2026-05-07 23:31:26 UTC (Unix 1778196686). 1-second mismatch is well within the 24-hour threshold; no flag.",
+      "Chargebee invoice 14111 — $600.00 USD paid via Apple Pay; no discounts applied; transaction status: success."
+    ]
+  },
+
+  "references": {
+    "intro": "Every claim in this report can be traced to one of the sources catalogued below. Wherever a source could not provide data for this entity, the gap is explicitly called out in the relevant section above (data gap).",
+    "entries": [
+      { "source": "Chargebee API — customers", "identifier": "16A2rRVIyq4cQjAV", "url": "https://zoca.chargebee.com/api/v2/customers/16A2rRVIyq4cQjAV" },
+      { "source": "Chargebee API — subscriptions", "identifier": "AzqVnoVIypcLs3jj9", "url": "https://zoca.chargebee.com/api/v2/subscriptions/AzqVnoVIypcLs3jj9" },
+      { "source": "Chargebee API — invoices", "identifier": "Invoice 14111", "url": "https://zoca.chargebee.com/api/v2/invoices/14111" },
+      { "source": "Stripe API — customers", "identifier": "cus_UTYVtzBwdkRKEk", "url": "https://api.stripe.com/v1/customers/cus_UTYVtzBwdkRKEk" },
+      { "source": "Metabase BaseSheet (master enrichment)", "identifier": "87763e8c", "url": "https://metabase.zoca.ai/public/question/87763e8c-8084-442e-891a-df1b11e81b47.csv" },
+      { "source": "Metabase comms — App Chat", "identifier": "10a52e37", "url": "https://metabase.zoca.ai/public/question/10a52e37-04fa-4422-b840-803b66e033bf.csv" },
+      { "source": "Metabase comms — Email", "identifier": "7a5aa1f6", "url": "https://metabase.zoca.ai/public/question/7a5aa1f6-9205-4e83-be51-3e585aa0f4a8.csv" },
+      { "source": "Metabase comms — Phone Calls", "identifier": "60797a27", "url": "https://metabase.zoca.ai/public/question/60797a27-c546-450d-b00b-a51b7e490143.csv" },
+      { "source": "Metabase comms — Video Calls", "identifier": "d95d9354", "url": "https://metabase.zoca.ai/public/question/d95d9354-7c84-4a57-8af5-e700580c6ecb.csv" },
+      { "source": "Metabase comms — SMS", "identifier": "bbaad2fb", "url": "https://metabase.zoca.ai/public/question/bbaad2fb-5f9d-4249-af59-c7812851437c.csv" },
+      { "source": "Metabase booking_platform CSV", "identifier": "4d3a953e", "url": "https://metabase.zoca.ai/public/question/4d3a953e-7223-4030-ba85-66ae19d7b49e.csv" },
+      { "source": "Metabase business_opening_date CSV (gbp.locations)", "identifier": "8b6f5349", "url": "https://metabase.zoca.ai/public/question/8b6f5349-5438-46df-b64e-07979d392b65.csv" },
+      { "source": "Metabase review_metrics CSV", "identifier": "88a7ea2a", "url": "https://metabase.zoca.ai/public/question/88a7ea2a-5a24-4b34-a712-e4dbdf2a197b.csv" },
+      { "source": "Fireflies (demo / discovery transcripts)", "identifier": "MCP integration", "url": "https://app.fireflies.ai/" },
+      { "source": "HubSpot (CRM lead source)", "identifier": "MCP integration", "url": "https://app.hubspot.com/" },
+      { "source": "Public Facebook page (third-party extracted)", "identifier": "Be Beauty Studio", "url": "https://www.facebook.com/people/Be-Beauty-Studio/100089232337772/" },
+      { "source": "Public GlossGenius booking page", "identifier": "from booking_platform.csv", "url": "https://bebeautybytina.glossgenius.com/" }
+    ],
+    "matching_keys": [
+      { "key": "Chargebee customer.email", "usage": "Matches Stripe customer (search), HubSpot contact (search_crm_objects email exact-match), Fireflies participants (transcript search)" },
+      { "key": "Chargebee customer_id", "usage": "Joins to BaseSheet via the customer_id column (BaseSheet is the canonical map from Chargebee customer_id to one or more Zoca entity_ids)" },
+      { "key": "Zoca entity_id", "usage": "Joins to all five comms CSVs (column \"Entity ID\"), booking_platform CSV (column \"Entity ID\"), business_opening_date CSV (column \"Entity ID\"), review_metrics CSV (column \"entity_id\")" },
+      { "key": "GBP place_id", "usage": "Stable across business renames; used as a fallback identity check" }
+    ]
+  }
+}
