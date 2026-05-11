@@ -33,11 +33,11 @@ function VerdictBlock({
       ? { text: "❌ Not ICP", border: "border-accent-red/40", bg: "bg-accent-red-bg", color: "text-accent-red" }
       : { text: "Pending", border: "border-line", bg: "bg-elevated", color: "text-ink-dim" };
   return (
-    <div className={`rounded-2xl border ${pill.border} ${pill.bg} px-6 py-5 mb-6`}>
+    <div className={`verdict-callout rounded-2xl border ${pill.border} ${pill.bg} px-6 py-5 mb-6`}>
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 mb-2">
         <span className={`text-3xl font-bold ${pill.color}`}>{pill.text}</span>
         {needsAmCall && (
-          <span className="inline-flex items-center gap-1 text-accent-yellow font-semibold">
+          <span className="verdict-needs-am inline-flex items-center gap-1 px-3 py-1 rounded-full text-accent-yellow font-semibold bg-accent-yellow-bg border border-accent-yellow/40">
             <span>🚨</span> Needs AM call
           </span>
         )}
@@ -50,7 +50,7 @@ function VerdictBlock({
 function Stat({ label, value, fmt }: { label: string; value: any; fmt?: (v: any) => string }) {
   const display = value === null || value === undefined ? "—" : fmt ? fmt(value) : String(value);
   return (
-    <div className="bg-surface border border-line rounded-2xl p-4">
+    <div className="stat-card bg-surface border border-line rounded-2xl p-4">
       <div className="text-xs text-ink-dim uppercase tracking-wide">{label}</div>
       <div className="text-lg font-semibold text-ink mt-1">{display}</div>
     </div>

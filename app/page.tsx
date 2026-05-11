@@ -46,19 +46,19 @@ function VerdictPill({ c }: { c: Customer }) {
   }
   if (c.verdict === "icp")
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-accent-green-bg border border-accent-green/40 text-accent-green text-xs font-semibold">
+      <span className="verdict-pill inline-flex items-center px-2.5 py-0.5 rounded-full bg-accent-green-bg border border-accent-green/40 text-accent-green text-xs font-semibold">
         ✅ ICP
       </span>
     );
   if (c.verdict === "review")
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-accent-yellow-bg border border-accent-yellow/40 text-accent-yellow text-xs font-semibold">
+      <span className="verdict-pill inline-flex items-center px-2.5 py-0.5 rounded-full bg-accent-yellow-bg border border-accent-yellow/40 text-accent-yellow text-xs font-semibold">
         ⚠️ Review
       </span>
     );
   if (c.verdict === "not_icp")
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-accent-red-bg border border-accent-red/40 text-accent-red text-xs font-semibold">
+      <span className="verdict-pill inline-flex items-center px-2.5 py-0.5 rounded-full bg-accent-red-bg border border-accent-red/40 text-accent-red text-xs font-semibold">
         ❌ Not ICP
       </span>
     );
@@ -136,7 +136,7 @@ export default async function Page() {
           <span aria-hidden className="header-spark text-accent-pink text-sm" style={{ top: "-12px", left: "-22px", animationDelay: "0s" }}>✦</span>
           <span aria-hidden className="header-spark text-accent-purple text-xs" style={{ top: "-4px", right: "-26px", animationDelay: "0.7s" }}>✦</span>
           <span aria-hidden className="header-spark text-accent-yellow text-sm" style={{ bottom: "8px", right: "-12px", animationDelay: "1.4s" }}>✦</span>
-          <h1 className="text-pink-shimmer text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-extrabold tracking-tight leading-[0.95] m-0">
+          <h1 className="hero-float text-pink-shimmer text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-extrabold tracking-tight leading-[0.95] m-0">
             Post-Payment Reviews
           </h1>
         </div>
@@ -181,7 +181,7 @@ export default async function Page() {
       </section>
 
       {/* STAT STRIP */}
-      <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+      <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 anim-cascade">
         {[
           { label: "Total since floor", value: totals.all, tone: "ink" },
           { label: "✅ ICP", value: totals.icp, tone: "green" },
@@ -190,7 +190,7 @@ export default async function Page() {
           { label: "Out of scope", value: totals.out_of_scope, tone: "dim" },
           { label: "Pending", value: totals.pending, tone: "dim" },
           { label: "Failed", value: totals.failed, tone: "red" },
-        ].map((s) => {
+        ].map((s, i) => {
           const toneCls =
             s.tone === "green" ? "text-accent-green"
             : s.tone === "yellow" ? "text-accent-yellow"
@@ -200,10 +200,10 @@ export default async function Page() {
           return (
             <div
               key={s.label}
-              className="rounded-2xl border border-line bg-surface/50 backdrop-blur-sm p-4"
+              className="stat-card rounded-2xl border border-line bg-surface/50 backdrop-blur-sm p-4"
             >
               <div className="text-xs text-ink-dim">{s.label}</div>
-              <div className={`text-2xl font-bold mt-1 ${toneCls}`}>{s.value}</div>
+              <div className={`text-2xl font-bold mt-1 ${toneCls} anim-number`} style={{ animationDelay: `${0.4 + i * 0.06}s` }}>{s.value}</div>
             </div>
           );
         })}
@@ -232,7 +232,7 @@ export default async function Page() {
               </tr>
             )}
             {customers.map((c) => (
-              <tr key={c.cb_customer_id} className="border-t border-line-soft hover:bg-elevated transition">
+              <tr key={c.cb_customer_id} className="table-row-anim row-sweep border-t border-line-soft hover:bg-elevated transition-colors">
                 <td className="px-4 py-3 text-ink-muted whitespace-nowrap tabular-nums">{fmtDate(c.cb_created_at)}</td>
                 <td className="px-4 py-3">
                   <div className="font-semibold text-ink">{c.biz_name ?? "(no biz)"}</div>
@@ -246,9 +246,9 @@ export default async function Page() {
                   {c.status === "ready" ? (
                     <Link
                       href={`/reports/${c.cb_customer_id}`}
-                      className="text-accent-blue font-medium hover:text-accent-blue-strong transition"
+                      className="text-accent-blue font-medium hover:text-accent-blue-strong transition group"
                     >
-                      Open report →
+                      Open report <span className="link-arrow inline-block">→</span>
                     </Link>
                   ) : c.status === "out_of_scope" ? (
                     <span className="text-ink-faint">—</span>
