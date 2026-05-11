@@ -127,10 +127,24 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
                 },
                 section3_risks: {
                   type: "object",
-                  description: "Risk register.",
+                  description: "Quantified risk register — rendered as a 5-column table.",
                   properties: {
                     intro: { type: "string", description: "One-paragraph framing of the risks." },
-                    risks: { type: "array", items: { type: "object", additionalProperties: true }, description: "5-8 risk objects, each with: id (R1, R2...), risk (short title), likelihood (PASS/WARN/FAIL/RISK/GAP), impact (same scale), driver_mitigation (sentence explaining the driver + recommended mitigation)." },
+                    risks: {
+                      type: "array",
+                      description: "5-8 risk rows.",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string", description: "R1, R2..." },
+                          risk: { type: "string", description: "Short title." },
+                          likelihood: { type: "string", enum: ["PASS", "WARN", "FAIL", "RISK", "GAP"] },
+                          impact: { type: "string", enum: ["PASS", "WARN", "FAIL", "RISK", "GAP"] },
+                          driver_mitigation: { type: "string", description: "Driver + recommended mitigation." },
+                        },
+                        required: ["id", "risk", "likelihood", "impact", "driver_mitigation"],
+                      },
+                    },
                   },
                   required: ["intro", "risks"],
                   additionalProperties: true,
@@ -139,67 +153,195 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
                   type: "object",
                   description: "Module 02 ICP framework application.",
                   properties: {
-                    tier_application: { type: "string", description: "Brief statement of which Step-1.2 tier (below 30 / 30-60 / above 60) this customer falls in." },
+                    tier_application: { type: "string", description: "Where this customer falls in Step-1.2 tier rule." },
                     vertical_lock_text: { type: "string", description: "1-2 sentences on whether the customer is in the beauty/wellness vertical." },
-                    step1: { type: "array", items: { type: "object", additionalProperties: true }, description: "Array of 3 gate objects (1.1 Device, 1.2 Lead prediction, 1.3 Booking platform). Each has: gate (label), status (PASS/FAIL/AUTOFAIL/GAP/WARN), evidence (string or array of paragraph objects)." },
-                    step2: { type: "array", items: { type: "object", additionalProperties: true }, description: "Array of Step-2 lead-shape evaluation rows. Each: row_label, status, evidence." },
+                    step1: {
+                      type: "array",
+                      description: "Exactly 3 gates: 1.1 Device, 1.2 Lead prediction, 1.3 Booking platform.",
+                      items: {
+                        type: "object",
+                        properties: {
+                          gate: { type: "string", description: "e.g. '1.1 Device (laptop or iPad in shop)'" },
+                          status: { type: "string", enum: ["PASS", "FAIL", "AUTOFAIL", "WARN", "GAP"] },
+                          evidence: { type: "string", description: "Evidence + source." },
+                        },
+                        required: ["gate", "status", "evidence"],
+                      },
+                    },
+                    step1_conclusion: { type: "string", description: "One-sentence conclusion across the 3 gates." },
+                    step2_row_label: { type: "string", description: "e.g. 'Single-location + solo'" },
+                    step2_row_evidence: { type: "array", items: { type: "string" }, description: "Paragraphs explaining the row identification." },
+                    step2: {
+                      type: "array",
+                      description: "Step-2 rule rows.",
+                      items: {
+                        type: "object",
+                        properties: {
+                          rule: { type: "string" },
+                          status: { type: "string", enum: ["PASS", "FAIL", "WARN", "GAP"] },
+                          evidence: { type: "string" },
+                        },
+                        required: ["rule", "status", "evidence"],
+                      },
+                    },
+                    disqualifiers: {
+                      type: "array",
+                      description: "Additional disqualifier rows.",
+                      items: {
+                        type: "object",
+                        properties: {
+                          label: { type: "string" },
+                          status: { type: "string", enum: ["PASS", "FAIL", "WARN", "GAP"] },
+                          notes: { type: "string" },
+                        },
+                        required: ["label", "status", "notes"],
+                      },
+                    },
+                    summary_table: {
+                      type: "array",
+                      description: "Quantitative summary rows.",
+                      items: {
+                        type: "object",
+                        properties: {
+                          layer: { type: "string" },
+                          status: { type: "string", enum: ["PASS", "FAIL", "AUTOFAIL", "WARN", "GAP"] },
+                          detail: { type: "string" },
+                        },
+                        required: ["layer", "status", "detail"],
+                      },
+                    },
+                    summary_takeaway: { type: "string" },
+                    one_line_blockquote: { type: "string", description: "The single-sentence why-this-verdict line." },
                   },
                   required: ["tier_application", "vertical_lock_text", "step1", "step2"],
                   additionalProperties: true,
                 },
                 section5_pointers: {
                   type: "array",
-                  items: { type: "object", additionalProperties: true },
-                  description: "Array of 8-15 post-payment pointer items. Each pointer object has: id (P1, P2...), pointer (short title), status (FAIL/WARN/RISK/GAP/PASS), evidence (string or rich paragraph array), action (recommended next action sentence).",
+                  description: "8-11 post-payment pointer subsections.",
+                  items: {
+                    type: "object",
+                    properties: {
+                      title: { type: "string", description: "Pointer subsection title." },
+                      source: { type: "string", description: "Data source label e.g. 'review_metrics.csv, BaseSheet'" },
+                      signal: { type: "string", description: "One-line signal value." },
+                      signal_status: { type: "string", enum: ["PASS", "FAIL", "AUTOFAIL", "WARN", "GAP", "RISK"] },
+                      blocks: {
+                        type: "array",
+                        description: "Body paragraphs. Each block { type: 'para'|'bullet', text: string }.",
+                        items: {
+                          type: "object",
+                          properties: {
+                            type: { type: "string", enum: ["para", "bullet", "richpara"] },
+                            text: { type: "string" },
+                          },
+                          required: ["type"],
+                          additionalProperties: true,
+                        },
+                      },
+                    },
+                    required: ["title", "source", "signal", "signal_status", "blocks"],
+                  },
                 },
                 section6_actions: {
                   type: "object",
-                  description: "Recommended actions table.",
+                  description: "Per-account action plan table.",
                   properties: {
                     intro: { type: "string" },
-                    actions: { type: "array", items: { type: "object", additionalProperties: true }, description: "Array of action objects: owner, action, timeline, success_criteria." },
+                    actions: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string", description: "A1, A2..." },
+                          action: { type: "string" },
+                          owner: { type: "string", description: "AM name or role." },
+                          deadline: { type: "string", description: "e.g. 'Day 7'" },
+                          success_criterion: { type: "string" },
+                        },
+                        required: ["id", "action", "owner", "deadline", "success_criterion"],
+                      },
+                    },
+                    am_script: { type: "string", description: "Verbatim AM recovery script." },
+                    am_script_attribution: { type: "string" },
+                    branch_paragraphs: { type: "array", items: { type: "string" } },
                   },
                   required: ["intro", "actions"],
                   additionalProperties: true,
                 },
                 section7_systemic: {
                   type: "object",
-                  description: "Systemic / process recommendations beyond this customer.",
+                  description: "Systemic recommendations.",
                   properties: {
                     intro: { type: "string" },
-                    recommendations: { type: "array", items: { type: "object", additionalProperties: true }, description: "Each: title, description, owner." },
+                    recommendations: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string", description: "S1, S2..." },
+                          recommendation: { type: "string" },
+                          owner: { type: "string", description: "Role e.g. 'Sales Ops', 'Data Eng'." },
+                          priority: { type: "string", enum: ["P0", "P1", "P2"] },
+                          rationale: { type: "string" },
+                        },
+                        required: ["id", "recommendation", "owner", "priority", "rationale"],
+                      },
+                    },
                   },
                   required: ["intro", "recommendations"],
                   additionalProperties: true,
                 },
                 section8_gaps: {
                   type: "object",
-                  description: "Open data gaps the validator could not close.",
+                  description: "Open data gaps — rendered as a numbered list.",
                   properties: {
                     intro: { type: "string" },
-                    gaps: { type: "array", items: { type: "object", additionalProperties: true }, description: "Each: gap, impact, owner_to_fix." },
+                    items: { type: "array", items: { type: "string" }, description: "One-sentence-per-gap." },
                   },
-                  required: ["intro", "gaps"],
+                  required: ["intro", "items"],
                   additionalProperties: true,
                 },
                 section9_evidence: {
                   type: "object",
-                  description: "Evidence appendix — quoted comms snippets, key data points.",
+                  description: "Evidence trail and methodology.",
                   properties: {
-                    intro: { type: "string" },
-                    items: { type: "array", items: { type: "object", additionalProperties: true }, description: "Each: label, content, source." },
+                    methodology_paragraphs: { type: "array", items: { type: "string" }, description: "2-4 paragraphs describing how the analysis was conducted." },
+                    evidence_trail: { type: "array", items: { type: "string" }, description: "Bullet items citing specific evidence with source." },
                   },
-                  required: ["intro", "items"],
+                  required: ["methodology_paragraphs", "evidence_trail"],
                   additionalProperties: true,
                 },
                 references: {
                   type: "object",
-                  description: "Source references.",
+                  description: "Source references — rendered as a 3-column table + matching keys table.",
                   properties: {
                     intro: { type: "string" },
-                    items: { type: "array", items: { type: "object", additionalProperties: true }, description: "Each: label, citation." },
+                    entries: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          source: { type: "string" },
+                          identifier: { type: "string" },
+                          url: { type: "string" },
+                        },
+                        required: ["source", "identifier", "url"],
+                      },
+                    },
+                    matching_keys: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          key: { type: "string" },
+                          usage: { type: "string" },
+                        },
+                        required: ["key", "usage"],
+                      },
+                    },
                   },
-                  required: ["intro", "items"],
+                  required: ["intro", "entries"],
                   additionalProperties: true,
                 },
               },
