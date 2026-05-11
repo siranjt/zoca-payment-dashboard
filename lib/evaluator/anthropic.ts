@@ -78,13 +78,47 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
             description:
               "Submit the final structured payment-validation analysis. " +
               "Call this with the complete report JSON object conforming to the " +
-              "schema described in the system prompt. Always emit a text content " +
-              "block with the full Markdown analysis BEFORE calling this tool.",
-            // Permissive schema — the system prompt describes the expected
-            // structure in detail. We just need the model to emit a JSON object.
+              "schema described in the system prompt (the same shape as " +
+              "report_schema.example.json — Be Beauty Studio worked example). " +
+              "Every top-level key listed below is REQUIRED. " +
+              "Always emit a text content block with the full Markdown analysis " +
+              "BEFORE calling this tool.",
+            // Schema requires all 11 top-level keys from report_schema.example.json
+            // so the model is forced to populate the full report. Nested objects
+            // are still permissive (additionalProperties:true) because their
+            // detailed shape is described in the system prompt.
             input_schema: {
               type: "object",
-              properties: {},
+              properties: {
+                meta: {
+                  type: "object",
+                  description: "Doc header/footer metadata: classification_banner, title, subtitle, subject_account, header_text",
+                  additionalProperties: true,
+                },
+                exec: {
+                  type: "object",
+                  description:
+                    "Executive summary. Required fields: verdict_label (ICP|Review|Not ICP), " +
+                    "verdict_status (PASS|WARN|FAIL), recommended_action_label, driver " +
+                    "(one-line reason), reinforcing_flags (string), mitigating_factors (string), " +
+                    "summary_paragraphs (array of strings), net_retention_picture, likely_outcome",
+                  additionalProperties: true,
+                },
+                section1: { type: "object", description: "Subject identifier + data sources tables", additionalProperties: true },
+                section3_risks: { type: "object", description: "Risk register with intro + risks array", additionalProperties: true },
+                section4_framework: { type: "object", description: "ICP framework application: tier_application, vertical_lock_text, step1 array, step2 array", additionalProperties: true },
+                section5_pointers: { type: "array", description: "Post-payment pointer tasks", items: { type: "object", additionalProperties: true } },
+                section6_actions: { type: "object", description: "Recommended actions table", additionalProperties: true },
+                section7_systemic: { type: "object", description: "Systemic recommendations", additionalProperties: true },
+                section8_gaps: { type: "object", description: "Open gaps + data engineering followups", additionalProperties: true },
+                section9_evidence: { type: "object", description: "Evidence appendix", additionalProperties: true },
+                references: { type: "object", description: "Source references", additionalProperties: true },
+              },
+              required: [
+                "meta", "exec", "section1", "section3_risks", "section4_framework",
+                "section5_pointers", "section6_actions", "section7_systemic",
+                "section8_gaps", "section9_evidence", "references",
+              ],
               additionalProperties: true,
             },
           },
