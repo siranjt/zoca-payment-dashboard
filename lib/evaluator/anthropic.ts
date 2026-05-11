@@ -47,18 +47,16 @@ function loadPrompt(): string {
 }
 
 /**
- * Load the canonical Julia mag glamour example so the model can see the exact
- * structural depth expected — 11 pointers, ~16 tables in section 5, h3 sub-
- * headings, kv pricing block, red-flags table, etc. This is appended to the
- * system prompt so the model treats it as a worked example, not user input.
+ * Returns an empty string. The canonical example used to be appended to the
+ * system prompt, but it added ~12K input tokens per request and pushed every
+ * call over Anthropic's 30K/min rate limit. The schema descriptions in the
+ * tool definition + prompt.md guidance are sufficient to convey shape; we
+ * trade a small consistency loss for staying under the rate limit.
+ *
+ * Re-enable by reading the file if/when the org's TPM limit is raised.
  */
 function loadCanonicalExample(): string {
-  try {
-    const p = path.join(process.cwd(), "examples", "julia_mag_glamour_canonical.json");
-    return fs.readFileSync(p, "utf8");
-  } catch {
-    return ""; // fall back if not bundled
-  }
+  return "";
 }
 
 // Hard cap on a single LLM round-trip. The full report schema requires the
