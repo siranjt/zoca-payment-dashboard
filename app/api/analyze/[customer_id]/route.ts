@@ -1,25 +1,39 @@
 /**
- * Stage 1 of the analyze pipeline — validator + small enrichment.
+ * Single-function analyze pipeline — consolidated from the old 4-stage chain.
  *
- * Pipeline (3 stages, each <60s to fit Vercel Hobby cap):
- *   Stage 1 — /api/analyze/[id]        — CB + Stripe + BaseSheet + 3 small CSVs → DB
- *   Stage 2 — /api/analyze/[id]/comms   — 5 comms CSVs (parallel)               → Blob
- *   Stage 3 — /api/analyze/[id]/llm     — Anthropic + docx + Slack              → DB
+ * Why consolidated:
+ *   The previous Stage 1 → Stage 2 (comms) → Stage 3a (LLM) → Stage 3b (render+Slack)
+ *   chain used fire-and-forget HTTP triggers between stages. Each hop was a
+ *   separate failure surface: function timeouts, internal-fetch routing,
+ *   different DB connections per Lambda instance, stage-store Blob handoff,
+ *   etc. We chased ~6 different symptoms and never got a clean end-to-end run.
  *
- * Each stage fires off the next via fire-and-forget POST after returning 200.
- * Stage URLs use the same /api/analyze/[id] prefix so they share routing context.
+ * New approach:
+ *   - POST returns 202 immediately with `{ ok: true, status: "queued" }`.
+ *   - The full pipeline (validator → comms → LLM → docx → Slack) runs inside
+ *     `waitUntil` so the function stays alive up to maxDuration without
+ *     blocking the caller.
+ *   - Each step writes its own event row + updates `customers.status` so the
+ *     dashboard reflects progress.
+ *   - With Fluid Compute enabled, we have ~300s. Typical end-to-end is 90–180s.
+ *
+ * The old /comms, /llm, /render sub-routes still exist but are no longer in
+ * the trigger chain. They can be removed in a follow-up cleanup.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
-import { buildBundleLight } from "@/lib/validator/bundle";
-import { saveStageBundle } from "@/lib/stage-store";
+import { buildBundle } from "@/lib/validator/bundle";
+import { evaluate } from "@/lib/evaluator/anthropic";
+import { renderAndUpload } from "@/lib/render/render";
+import { postCustomerReport } from "@/lib/slack";
 import {
-  setCustomerReport, setCustomerStatus, logEvent, upsertCustomerStub,
+  setCustomerReport, setCustomerStatus, logEvent,
+  upsertCustomerStub, getCustomer,
 } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 function pickEntityFields(b: any) {
@@ -68,41 +82,35 @@ function deriveScope(b: any): "discovery_first_pay" | "discovery_addon" | "no_su
 }
 
 /**
- * Trigger the next stage via fire-and-forget. Uses Vercel's `waitUntil()` so
- * the function stays alive until the outbound fetch completes (or fails),
- * even though we return to the client immediately after.
+ * The full pipeline. Runs in waitUntil so the HTTP response goes out at the
+ * top while this continues in the background. Logs an event at every step so
+ * the diag endpoint shows exactly where it got to.
  */
-function triggerNextStage(url: string, body: unknown, label: string) {
-  const work = (async () => {
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      console.log(`[stage-trigger] ${label} → ${url} status=${res.status}`);
-    } catch (e: any) {
-      console.error(`[stage-trigger] ${label} → ${url} failed:`, e?.message ?? e);
-    }
-  })();
-  waitUntil(work);
-}
+async function runPipeline(customerId: string) {
+  const t0 = Date.now();
+  await logEvent(customerId, "pipeline_started", { ts_iso: new Date().toISOString() });
 
-export async function POST(req: NextRequest, ctx: { params: { customer_id: string } }) {
-  const customerId = ctx.params.customer_id;
-  if (!customerId) return NextResponse.json({ ok: false, error: "missing_customer_id" }, { status: 400 });
-
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${req.headers.get("host")}`;
-
-  // --- Stage 1: build the light bundle (no comms) -------------------------
-  let bundle;
+  // ===== Step 1: Build full bundle =====================================
+  await setCustomerStatus(customerId, "processing");
+  await logEvent(customerId, "bundle_starting", {});
+  let bundle: any;
   try {
-    bundle = await buildBundleLight(customerId);
+    bundle = await buildBundle(customerId);
+    await logEvent(customerId, "bundle_done", {
+      elapsed_ms: Date.now() - t0,
+      pre_floor: bundle.pre_floor,
+      discovery_match: bundle.discovery_match,
+      has_subscription: !!bundle.subscription,
+      entity_ids: bundle.entity_ids,
+      comms: bundle.comms_summary,
+    });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, stage: "stage1_validator", error: e.message }, { status: 500 });
+    await setCustomerStatus(customerId, "failed", `bundle: ${e.message}`);
+    await logEvent(customerId, "pipeline_failed", { stage: "bundle", error: e.message });
+    return;
   }
 
-  // Upsert customer row so subsequent calls have a valid FK target
+  // Upsert customer row with real Chargebee data so subsequent FK / lookups resolve
   const cbCustomer = bundle.chargebee_customer ?? {};
   await upsertCustomerStub({
     cb_customer_id: customerId,
@@ -114,32 +122,10 @@ export async function POST(req: NextRequest, ctx: { params: { customer_id: strin
     cb_channel: cbCustomer.channel ?? undefined,
     cb_payment_method: cbCustomer.payment_method?.type ?? undefined,
   });
-  await logEvent(customerId, "stage1_started", {});
 
   const scope = deriveScope(bundle);
 
-  // Out-of-scope: stop here, no further stages
-  if (scope !== "discovery_first_pay") {
-    await setCustomerReport(customerId, {
-      scope,
-      stripe_customer_id: bundle.stripe_customer?.id ?? null,
-      stripe_created_at: bundle.t_stripe_unix ? new Date(bundle.t_stripe_unix * 1000).toISOString() : null,
-      timestamp_mismatch_h: bundle.timestamp_mismatch_hours,
-      timestamp_mismatch_flag: bundle.timestamp_mismatch_flag,
-      sub_id: bundle.subscription?.id ?? null,
-      sub_status: bundle.subscription?.status ?? null,
-      sub_item_price_ids: (bundle.subscription?.subscription_items ?? []).map((i: any) => i.item_price_id),
-      ...pickEntityFields(bundle),
-      ...pickReviewFields(bundle.review_metrics),
-      ...pickBookingFields(bundle.booking_platform_rows),
-      status: "out_of_scope",
-      failure_reason: bundle.skip_reason,
-    });
-    await logEvent(customerId, "out_of_scope", { reason: bundle.skip_reason });
-    return NextResponse.json({ ok: true, status: "out_of_scope", reason: bundle.skip_reason });
-  }
-
-  // In-scope: persist everything from stage 1 and save bundle to Blob
+  // Persist deterministic data either way
   await setCustomerReport(customerId, {
     scope,
     stripe_customer_id: bundle.stripe_customer?.id ?? null,
@@ -155,19 +141,143 @@ export async function POST(req: NextRequest, ctx: { params: { customer_id: strin
     ...pickEntityFields(bundle),
     ...pickReviewFields(bundle.review_metrics),
     ...pickBookingFields(bundle.booking_platform_rows),
-    status: "processing",
   });
 
-  // Save bundle so Stage 2 can read it instead of re-fetching all the enrichment
-  const bundleUrl = await saveStageBundle(customerId, bundle);
-  await logEvent(customerId, "stage1_done", { bundle_url: bundleUrl });
+  // Out-of-scope: short-circuit here
+  if (scope !== "discovery_first_pay") {
+    await setCustomerReport(customerId, { status: "out_of_scope", failure_reason: bundle.skip_reason });
+    await logEvent(customerId, "out_of_scope", { reason: bundle.skip_reason, scope });
+    return;
+  }
 
-  // Fire-and-forget Stage 2
-  triggerNextStage(
-    `${baseUrl}/api/analyze/${customerId}/comms`,
-    { bundle_url: bundleUrl },
-    `stage1→stage2(${customerId})`,
-  );
+  // ===== Step 2: LLM evaluation ========================================
+  await logEvent(customerId, "llm_starting", {
+    model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
+  });
+  const llmT0 = Date.now();
+  let evalResult;
+  try {
+    evalResult = await evaluate({ bundle });
+    await logEvent(customerId, "llm_done", {
+      elapsed_ms: Date.now() - llmT0,
+      markdown_chars: evalResult.markdown.length,
+    });
+  } catch (e: any) {
+    const elapsed = Date.now() - llmT0;
+    await setCustomerStatus(customerId, "failed", `llm: ${e.message}`);
+    await logEvent(customerId, "pipeline_failed", { stage: "llm", error: e.message, elapsed_ms: elapsed });
+    return;
+  }
 
-  return NextResponse.json({ ok: true, status: "stage1_done", next: "comms" });
+  // Persist verdict immediately so dashboard reflects it even if render fails
+  const verdict = evalResult.reportData?.exec?.verdict_label?.toLowerCase()?.replace(/\s+/g, "_") ?? null;
+  const verdictNorm: "icp" | "review" | "not_icp" | null =
+    verdict === "icp" ? "icp"
+    : verdict === "review" ? "review"
+    : verdict === "not_icp" ? "not_icp"
+    : null;
+  const keyFlags: string[] = evalResult.reportData?.exec?.reinforcing_flags
+    ? [evalResult.reportData.exec.reinforcing_flags] : [];
+
+  await setCustomerReport(customerId, {
+    verdict: verdictNorm,
+    needs_am_call: !!evalResult.reportData?.exec?.recommended_action_label?.toLowerCase()?.includes("am"),
+    verdict_one_line: evalResult.reportData?.exec?.driver ?? null,
+    key_flags: keyFlags,
+  });
+
+  // ===== Step 3: Render docx + upload ==================================
+  await logEvent(customerId, "render_starting", {});
+  let render: { docxUrl: string; jsonUrl: string; mdUrl: string; bytes: number } | null = null;
+  try {
+    render = await renderAndUpload({
+      cbCustomerId: customerId,
+      reportData: evalResult.reportData,
+      markdown: evalResult.markdown,
+    });
+    await logEvent(customerId, "render_done", { bytes: render.bytes });
+  } catch (e: any) {
+    await logEvent(customerId, "render_failed", { error: e.message });
+    // continue — render is non-fatal, we still post to Slack with markdown
+  }
+
+  await setCustomerReport(customerId, {
+    report_blob_docx_url: render?.docxUrl ?? null,
+    report_blob_json_url: render?.jsonUrl ?? null,
+    report_blob_md_url: render?.mdUrl ?? null,
+    status: "ready",
+    failure_reason: null,
+  });
+
+  // ===== Step 4: Slack post ============================================
+  await logEvent(customerId, "slack_starting", {});
+  try {
+    const cust = await getCustomer(customerId);
+    const slackRes = await postCustomerReport({
+      cbCustomerId: customerId,
+      bizName: cust?.biz_name ?? null,
+      amName: cust?.am_name ?? null,
+      verdict: verdictNorm,
+      needsAmCall: !!cust?.needs_am_call,
+      oneLine: cust?.verdict_one_line ?? null,
+      keyFlags,
+      markdown: evalResult.markdown,
+      docxBlobUrl: render?.docxUrl ?? null,
+    });
+    if (slackRes.ts) {
+      await setCustomerReport(customerId, {
+        slack_channel_id: process.env.SLACK_CHANNEL_ID ?? null,
+        slack_ts: slackRes.ts,
+      });
+    }
+    await logEvent(customerId, "slack_done", {
+      ts: slackRes.ts ?? null,
+      posted: slackRes.posted,
+      file_url: slackRes.fileUrl,
+    });
+  } catch (e: any) {
+    await logEvent(customerId, "slack_failed", { error: e.message });
+  }
+
+  await logEvent(customerId, "pipeline_done", {
+    elapsed_ms: Date.now() - t0,
+    verdict: verdictNorm,
+  });
+}
+
+export async function POST(req: NextRequest, ctx: { params: { customer_id: string } }) {
+  const customerId = ctx.params.customer_id;
+  if (!customerId) {
+    return NextResponse.json({ ok: false, error: "missing_customer_id" }, { status: 400 });
+  }
+
+  // Create a stub customer row IMMEDIATELY so logEvent's FK is satisfied even
+  // if the full bundle build hasn't run yet. cb_created_at is a placeholder
+  // (NOW()) that gets overwritten by the real timestamp once bundle resolves.
+  try {
+    await upsertCustomerStub({
+      cb_customer_id: customerId,
+      cb_created_at: new Date().toISOString(),
+    });
+  } catch (e: any) {
+    return NextResponse.json({
+      ok: false, stage: "stub", error: e?.message ?? String(e),
+    }, { status: 500 });
+  }
+  await logEvent(customerId, "queued", { ts_iso: new Date().toISOString() });
+  await setCustomerStatus(customerId, "processing");
+
+  // Kick off the full pipeline as background work. The response goes out as
+  // soon as we return below; Vercel keeps the function alive (up to
+  // maxDuration=300s with Fluid Compute) while runPipeline awaits each step.
+  waitUntil(runPipeline(customerId).catch(async (e: any) => {
+    await logEvent(customerId, "pipeline_crashed", {
+      error: e?.message ?? String(e),
+      stack: (e?.stack ?? "").split("\n").slice(0, 6).join("\n"),
+    }).catch(() => undefined);
+    await setCustomerStatus(customerId, "failed", `crash: ${e?.message ?? e}`)
+      .catch(() => undefined);
+  }));
+
+  return NextResponse.json({ ok: true, status: "queued", customer_id: customerId }, { status: 202 });
 }
