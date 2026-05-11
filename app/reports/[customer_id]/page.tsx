@@ -5,13 +5,17 @@
  *   - Back link
  *   - Customer header + Preview/JSON action buttons
  *   - Verdict callout banner (status-coloured)
- *   - Key facts grid
- *   - Full analysis markdown (rendered in mono pre block)
+ *   - Key facts grid (animated cards)
+ *   - Interactive visual analysis (tabbed ReportVisual component)
+ *
+ * Animation language mirrors the dashboard: anim-rise / anim-cascade for the
+ * entrance wave, chart-card hover lifts, count-up numbers, donut fade-in.
  */
 
 import { getCustomer } from "@/lib/db/queries";
 import Link from "next/link";
 import { DocxPreviewButton } from "@/components/DocxPreviewButton";
+import ReportVisual from "@/components/ReportVisual";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +37,7 @@ function VerdictBlock({
       ? { text: "❌ Not ICP", border: "border-accent-red/40", bg: "bg-accent-red-bg", color: "text-accent-red" }
       : { text: "Pending", border: "border-line", bg: "bg-elevated", color: "text-ink-dim" };
   return (
-    <div className={`verdict-callout rounded-2xl border ${pill.border} ${pill.bg} px-6 py-5 mb-6`}>
+    <div className={`verdict-callout rounded-2xl border ${pill.border} ${pill.bg} px-6 py-5`}>
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 mb-2">
         <span className={`text-3xl font-bold ${pill.color}`}>{pill.text}</span>
         {needsAmCall && (
@@ -50,19 +54,30 @@ function VerdictBlock({
 function Stat({ label, value, fmt }: { label: string; value: any; fmt?: (v: any) => string }) {
   const display = value === null || value === undefined ? "—" : fmt ? fmt(value) : String(value);
   return (
-    <div className="stat-card bg-surface border border-line rounded-2xl p-4">
+    <div className="stat-card chart-card bg-surface border border-line rounded-2xl p-4">
       <div className="text-xs text-ink-dim uppercase tracking-wide">{label}</div>
       <div className="text-lg font-semibold text-ink mt-1">{display}</div>
     </div>
   );
 }
 
-async function fetchMarkdown(url: string | null): Promise<string | null> {
+async function fetchText(url: string | null): Promise<string | null> {
   if (!url) return null;
   try {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;
     return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchJson(url: string | null): Promise<any | null> {
+  if (!url) return null;
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.json();
   } catch {
     return null;
   }
@@ -81,17 +96,21 @@ export default async function ReportPage({ params }: { params: { customer_id: st
     );
   }
 
-  const md = await fetchMarkdown(c.report_blob_md_url);
+  // Pull both JSON (for the visual) and markdown (kept for any raw-text needs)
+  const [reportData, _md] = await Promise.all([
+    fetchJson(c.report_blob_json_url),
+    fetchText(c.report_blob_md_url),
+  ]);
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="anim-rise">
         <Link href="/" className="text-sm text-accent-blue hover:text-accent-blue-strong transition">
           ← All reports
         </Link>
       </div>
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 anim-rise" style={{ animationDelay: "0.06s" }}>
         <div className="min-w-0">
           <h2 className="text-3xl font-bold text-ink leading-tight">
             {c.biz_name ?? c.cb_customer_id}
@@ -123,7 +142,7 @@ export default async function ReportPage({ params }: { params: { customer_id: st
           {c.report_blob_json_url && (
             <a
               href={c.report_blob_json_url}
-              className="px-3 py-1.5 border border-line text-ink-muted rounded-lg hover:bg-elevated transition"
+              className="btn-bounce px-3 py-1.5 border border-line text-ink-muted rounded-lg hover:bg-elevated hover:border-accent-blue transition"
             >
               ↓ JSON
             </a>
@@ -131,11 +150,13 @@ export default async function ReportPage({ params }: { params: { customer_id: st
         </div>
       </div>
 
-      <VerdictBlock verdict={c.verdict} needsAmCall={c.needs_am_call} oneLine={c.verdict_one_line} />
+      <div className="anim-rise" style={{ animationDelay: "0.12s" }}>
+        <VerdictBlock verdict={c.verdict} needsAmCall={c.needs_am_call} oneLine={c.verdict_one_line} />
+      </div>
 
-      <div>
+      <div className="anim-rise" style={{ animationDelay: "0.18s" }}>
         <h3 className="text-lg font-semibold mb-3 text-ink">Key facts</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 anim-cascade">
           <Stat
             label="AE / AM"
             value={[c.ae_name, c.am_name].filter(Boolean).join(" / ") || null}
@@ -162,18 +183,21 @@ export default async function ReportPage({ params }: { params: { customer_id: st
         </div>
       </div>
 
-      {md ? (
-        <div>
+      {reportData ? (
+        <div className="anim-rise" style={{ animationDelay: "0.28s" }}>
           <h3 className="text-lg font-semibold mb-3 text-ink">Full analysis</h3>
-          <article className="bg-surface border border-line rounded-2xl p-6 whitespace-pre-wrap font-mono text-xs text-ink-muted leading-relaxed">
-            {md}
-          </article>
+          <div className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
+            <ReportVisual data={reportData} />
+          </div>
         </div>
       ) : (
-        <div className="rounded-2xl border border-accent-yellow/40 bg-accent-yellow-bg/40 px-5 py-4 text-sm text-accent-yellow">
-          <strong className="text-ink">Markdown analysis not yet rendered.</strong> Status:{" "}
+        <div className="rounded-2xl border border-accent-yellow/40 bg-accent-yellow-bg/40 px-5 py-4 text-sm text-accent-yellow anim-rise" style={{ animationDelay: "0.28s" }}>
+          <strong className="text-ink">Visual analysis not yet available.</strong> Status:{" "}
           <code className="font-mono">{c.status}</code>
           {c.failure_reason && <p className="mt-2">Reason: {c.failure_reason}</p>}
+          <p className="text-xs text-ink-muted mt-2">
+            The structured JSON couldn't be fetched. Use the docx preview or the JSON download button above to view the canonical artifacts.
+          </p>
         </div>
       )}
     </div>

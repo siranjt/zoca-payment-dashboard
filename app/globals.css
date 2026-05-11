@@ -525,16 +525,23 @@ a:hover .link-arrow,
    donut rings sweep, bars grow, active states shimmer.
    ────────────────────────────────────────────── */
 
-/* DONUT RING DRAW-IN — strokeDasharray sweeps clockwise on mount.
-   Animation duration is staggered per-segment via inline animation-delay. */
-@keyframes donut-draw {
-  from { stroke-dashoffset: 0; opacity: 0; }
-  to   { stroke-dashoffset: var(--ring-offset, 0); opacity: 1; }
+/* DONUT RING FADE-IN — colors are always visible; only opacity animates.
+   The earlier dashoffset-tween approach broke when --ring-offset wasn't set
+   on every consumer (lead-tier donut), leaving rings invisible. This version
+   degrades gracefully: if the animation never runs, the ring still shows at
+   full color (backwards fill + base opacity:1).
+
+   Animation-fill-mode is intentionally `both` so the final keyframe
+   (opacity:1) sticks after the animation finishes — no risk of the ring
+   snapping back to invisible. */
+@keyframes donut-fade-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
 }
 .donut-ring {
-  animation: donut-draw 1.1s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  transform-origin: 50% 50%;
-  transition: stroke-width 220ms var(--ease-glide), opacity 220ms ease;
+  animation: donut-fade-in 0.85s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: 90px 90px;
+  transition: stroke-width 220ms var(--ease-glide);
 }
 .donut-ring:hover { stroke-width: 26 !important; }
 

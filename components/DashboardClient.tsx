@@ -142,7 +142,6 @@ function VerdictDonut({
                 // Stagger ring entry; shift to a higher base delay so it lands
                 // just after the chart-card glide-in finishes.
                 animationDelay: `${0.26 + idx * 0.08}s`,
-                ["--ring-offset" as any]: `${offset}`,
               }}
               onClick={() => onSelect(isSelected ? "all" : d.key)}
             />
