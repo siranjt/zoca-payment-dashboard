@@ -1,0 +1,551 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { ManualAnalysisButton } from "@/components/ManualAnalysisButton";
+import AmbientSparkles from "@/components/AmbientSparkles";
+
+type Customer = {
+  cb_customer_id: string;
+  biz_name: string | null;
+  email: string | null;
+  am_name: string | null;
+  ae_name: string | null;
+  scope: string;
+  verdict: string | null;
+  status: string;
+  failure_reason: string | null;
+  cb_created_at: string;
+  primary_category: string | null;
+  predicted_6_month_leads: number | null;
+};
+
+type VerdictFilter = "all" | "icp" | "review" | "not_icp" | "pending" | "failed" | "out_of_scope";
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toISOString().slice(0, 16).replace("T", " ") + "Z";
+}
+
+function verdictKey(c: Customer): VerdictFilter {
+  if (c.status === "pending" || c.status === "processing") return "pending";
+  if (c.status === "failed") return "failed";
+  if (c.status === "out_of_scope") return "out_of_scope";
+  if (c.verdict === "icp") return "icp";
+  if (c.verdict === "review") return "review";
+  if (c.verdict === "not_icp") return "not_icp";
+  return "pending";
+}
+
+/* ──────────────────────────────────────────────
+   DONUT CHART — verdict distribution
+   ────────────────────────────────────────────── */
+function VerdictDonut({
+  data,
+  selected,
+  onSelect,
+}: {
+  data: { key: VerdictFilter; label: string; value: number; color: string; ringColor: string }[];
+  selected: VerdictFilter;
+  onSelect: (v: VerdictFilter) => void;
+}) {
+  const total = data.reduce((a, b) => a + b.value, 0);
+  const r = 60;
+  const stroke = 22;
+  const C = 2 * Math.PI * r;
+  let acc = 0;
+  return (
+    <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: 200 }}>
+      <svg width={180} height={180} viewBox="0 0 180 180">
+        <circle cx={90} cy={90} r={r} fill="none" stroke="#F3F4F6" strokeWidth={stroke} />
+        {data.map((d) => {
+          if (d.value === 0) return null;
+          const pct = d.value / Math.max(total, 1);
+          const len = pct * C;
+          const offset = -acc * C;
+          acc += pct;
+          const isSelected = selected === d.key;
+          return (
+            <circle
+              key={d.key}
+              cx={90}
+              cy={90}
+              r={r}
+              fill="none"
+              stroke={d.color}
+              strokeWidth={isSelected ? stroke + 4 : stroke}
+              strokeDasharray={`${len} ${C - len}`}
+              strokeDashoffset={offset}
+              transform="rotate(-90 90 90)"
+              style={{
+                cursor: "pointer",
+                transition: "stroke-width 200ms ease, opacity 200ms ease",
+                opacity: selected === "all" || isSelected ? 1 : 0.35,
+              }}
+              onClick={() => onSelect(isSelected ? "all" : d.key)}
+            />
+          );
+        })}
+      </svg>
+      <div style={{ position: "absolute", textAlign: "center", pointerEvents: "none" }}>
+        <div style={{ fontSize: 11, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5 }}>
+          {selected === "all" ? "Total" : data.find((d) => d.key === selected)?.label ?? "Filter"}
+        </div>
+        <div style={{ fontSize: 30, fontWeight: 700, color: "#0A2540", lineHeight: 1.1 }}>
+          {selected === "all" ? total : data.find((d) => d.key === selected)?.value ?? 0}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   HORIZONTAL BAR CHART — AM workload
+   ────────────────────────────────────────────── */
+function AMBarChart({
+  data,
+  selectedAm,
+  onSelectAm,
+}: {
+  data: { name: string; count: number }[];
+  selectedAm: string | null;
+  onSelectAm: (am: string | null) => void;
+}) {
+  const max = Math.max(1, ...data.map((d) => d.count));
+  if (data.length === 0) {
+    return <div style={{ padding: "20px 8px", fontSize: 12, color: "#6B7280" }}>No AM data yet.</div>;
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "8px 0" }}>
+      {data.map((d) => {
+        const pct = (d.count / max) * 100;
+        const isSelected = selectedAm === d.name;
+        return (
+          <div
+            key={d.name}
+            onClick={() => onSelectAm(isSelected ? null : d.name)}
+            style={{
+              cursor: "pointer",
+              padding: "6px 8px",
+              borderRadius: 6,
+              background: isSelected ? "#EFF6FF" : "transparent",
+              transition: "background 200ms ease",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 12 }}>
+              <span style={{ color: isSelected ? "#1E40AF" : "#0A2540", fontWeight: isSelected ? 600 : 500 }}>{d.name}</span>
+              <span style={{ color: "#6B7280", fontVariantNumeric: "tabular-nums" }}>{d.count}</span>
+            </div>
+            <div style={{ height: 6, background: "#F3F4F6", borderRadius: 3, overflow: "hidden" }}>
+              <div
+                style={{
+                  width: `${pct}%`,
+                  height: "100%",
+                  background: isSelected ? "#2D5BFF" : "#8B5CF6",
+                  borderRadius: 3,
+                  transition: "width 600ms cubic-bezier(0.16, 1, 0.3, 1), background 200ms ease",
+                }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   SPARK TIMELINE — customers per day
+   ────────────────────────────────────────────── */
+function CreationTimeline({ data }: { data: { date: string; count: number }[] }) {
+  if (data.length === 0) {
+    return <div style={{ padding: "20px 8px", fontSize: 12, color: "#6B7280" }}>No customers yet.</div>;
+  }
+  const max = Math.max(1, ...data.map((d) => d.count));
+  const W = 280;
+  const H = 80;
+  const pad = 8;
+  const step = (W - pad * 2) / Math.max(data.length - 1, 1);
+  const pts = data.map((d, i) => {
+    const x = pad + i * step;
+    const y = H - pad - (d.count / max) * (H - pad * 2);
+    return { x, y, ...d };
+  });
+  const path = pts.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(" ");
+  const area = `${path} L ${pts[pts.length - 1].x} ${H - pad} L ${pts[0].x} ${H - pad} Z`;
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H + 28}`} style={{ display: "block" }}>
+      <defs>
+        <linearGradient id="tl-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#EC4899" stopOpacity={0.18} />
+          <stop offset="100%" stopColor="#EC4899" stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#tl-grad)" />
+      <path d={path} fill="none" stroke="#EC4899" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+      {pts.map((p, i) => (
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r={3} fill="#EC4899" />
+          <title>{p.date}: {p.count} customer{p.count !== 1 ? "s" : ""}</title>
+        </g>
+      ))}
+      {pts.map((p, i) => (
+        <text key={`l${i}`} x={p.x} y={H + 14} textAnchor="middle" fontSize={9} fill="#6B7280">
+          {p.date.slice(5)}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   STAT CARD with click-to-filter
+   ────────────────────────────────────────────── */
+function StatCard({
+  label,
+  value,
+  tone,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  tone: "ink" | "green" | "yellow" | "red" | "dim";
+  active: boolean;
+  onClick?: () => void;
+}) {
+  const toneCls =
+    tone === "green" ? "text-accent-green"
+    : tone === "yellow" ? "text-accent-yellow"
+    : tone === "red" ? "text-accent-red"
+    : tone === "dim" ? "text-ink-dim"
+    : "text-ink";
+  return (
+    <div
+      onClick={onClick}
+      className="stat-card rounded-2xl border border-line bg-surface/50 backdrop-blur-sm p-4"
+      style={{
+        cursor: onClick ? "pointer" : "default",
+        borderColor: active ? "rgba(45, 91, 255, 0.5)" : undefined,
+        background: active ? "rgba(239, 246, 255, 0.6)" : undefined,
+      }}
+    >
+      <div className="text-xs text-ink-dim">{label}</div>
+      <div className={`text-2xl font-bold mt-1 ${toneCls}`}>{value}</div>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   VERDICT PILL
+   ────────────────────────────────────────────── */
+function VerdictPill({ c }: { c: Customer }) {
+  if (c.status === "pending" || c.status === "processing") {
+    return (
+      <span className="verdict-pill inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-elevated border border-line text-ink-dim text-xs">
+        <span className="live-dot" /> {c.status}
+      </span>
+    );
+  }
+  if (c.status === "failed") {
+    return (
+      <span
+        className="verdict-pill inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-red-bg border border-accent-red/40 text-accent-red text-xs font-medium"
+        title={c.failure_reason ?? ""}
+      >
+        ⚠️ failed
+      </span>
+    );
+  }
+  if (c.scope !== "discovery_first_pay") {
+    const reason =
+      c.scope === "no_subscription" ? "no sub yet"
+      : c.scope === "other_subscription" ? "non-Discovery"
+      : c.scope === "discovery_addon" ? "Discovery add-on"
+      : c.scope === "pre_floor" ? "pre-floor"
+      : c.scope;
+    return <span className="text-ink-dim text-xs">— {reason}</span>;
+  }
+  if (c.verdict === "icp")
+    return <span className="verdict-pill inline-flex items-center px-2.5 py-0.5 rounded-full bg-accent-green-bg border border-accent-green/40 text-accent-green text-xs font-semibold">✅ ICP</span>;
+  if (c.verdict === "review")
+    return <span className="verdict-pill inline-flex items-center px-2.5 py-0.5 rounded-full bg-accent-yellow-bg border border-accent-yellow/40 text-accent-yellow text-xs font-semibold">⚠️ Review</span>;
+  if (c.verdict === "not_icp")
+    return <span className="verdict-pill inline-flex items-center px-2.5 py-0.5 rounded-full bg-accent-red-bg border border-accent-red/40 text-accent-red text-xs font-semibold">❌ Not ICP</span>;
+  return <span className="text-ink-dim text-xs">—</span>;
+}
+
+function ScopeChip({ scope }: { scope: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    discovery_first_pay: { label: "Discovery first-pay", cls: "bg-accent-blue-bg text-accent-blue-strong border border-accent-blue/30" },
+    discovery_addon: { label: "Discovery add-on", cls: "bg-accent-purple-bg text-accent-purple-strong border border-accent-purple/30" },
+    other_subscription: { label: "Non-Discovery sub", cls: "bg-elevated text-ink-muted border border-line" },
+    no_subscription: { label: "No sub yet", cls: "bg-elevated text-ink-dim border border-line" },
+    pre_floor: { label: "Pre-floor", cls: "bg-accent-yellow-bg text-accent-yellow border border-accent-yellow/30" },
+    pending: { label: "Pending", cls: "bg-elevated text-ink-dim border border-line" },
+  };
+  const v = map[scope] ?? { label: scope, cls: "bg-elevated text-ink-muted border border-line" };
+  return <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${v.cls}`}>{v.label}</span>;
+}
+
+function Feature({ children }: { children: React.ReactNode }) {
+  return <span className="inline-flex items-center gap-1.5"><span className="text-accent-pink">•</span>{children}</span>;
+}
+
+/* ──────────────────────────────────────────────
+   MAIN CLIENT DASHBOARD
+   ────────────────────────────────────────────── */
+type SortKey = "created_desc" | "created_asc" | "biz_asc" | "verdict";
+
+export default function DashboardClient({ customers }: { customers: Customer[] }) {
+  const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>("all");
+  const [search, setSearch] = useState("");
+  const [selectedAm, setSelectedAm] = useState<string | null>(null);
+  const [sort, setSort] = useState<SortKey>("created_desc");
+
+  // Totals
+  const totals = useMemo(() => {
+    const t = { all: customers.length, icp: 0, review: 0, not_icp: 0, out_of_scope: 0, pending: 0, failed: 0 };
+    for (const c of customers) {
+      const k = verdictKey(c);
+      if (k in t) (t as any)[k]++;
+    }
+    return t;
+  }, [customers]);
+
+  // Donut data
+  const donutData = useMemo(
+    () => [
+      { key: "icp" as const, label: "ICP", value: totals.icp, color: "#10B981", ringColor: "#D1FAE5" },
+      { key: "review" as const, label: "Review", value: totals.review, color: "#F59E0B", ringColor: "#FEF3C7" },
+      { key: "not_icp" as const, label: "Not ICP", value: totals.not_icp, color: "#EF4444", ringColor: "#FEE2E2" },
+      { key: "pending" as const, label: "Pending", value: totals.pending, color: "#94A3B8", ringColor: "#F1F5F9" },
+      { key: "failed" as const, label: "Failed", value: totals.failed, color: "#BE185D", ringColor: "#FCE7F3" },
+      { key: "out_of_scope" as const, label: "Out of scope", value: totals.out_of_scope, color: "#CBD5E1", ringColor: "#F1F5F9" },
+    ],
+    [totals]
+  );
+
+  // AM workload
+  const amCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of customers) {
+      if (!c.am_name) continue;
+      m.set(c.am_name, (m.get(c.am_name) ?? 0) + 1);
+    }
+    return Array.from(m.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [customers]);
+
+  // Daily timeline (last 14 days)
+  const timeline = useMemo(() => {
+    const days: Record<string, number> = {};
+    const now = new Date();
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      days[key] = 0;
+    }
+    for (const c of customers) {
+      const k = c.cb_created_at?.slice(0, 10);
+      if (k && k in days) days[k]++;
+    }
+    return Object.entries(days).map(([date, count]) => ({ date, count }));
+  }, [customers]);
+
+  // Filtered + sorted rows
+  const rows = useMemo(() => {
+    let r = customers.slice();
+    if (verdictFilter !== "all") r = r.filter((c) => verdictKey(c) === verdictFilter);
+    if (selectedAm) r = r.filter((c) => c.am_name === selectedAm);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      r = r.filter(
+        (c) =>
+          (c.biz_name ?? "").toLowerCase().includes(q) ||
+          c.cb_customer_id.toLowerCase().includes(q) ||
+          (c.email ?? "").toLowerCase().includes(q)
+      );
+    }
+    r.sort((a, b) => {
+      if (sort === "created_desc") return b.cb_created_at.localeCompare(a.cb_created_at);
+      if (sort === "created_asc") return a.cb_created_at.localeCompare(b.cb_created_at);
+      if (sort === "biz_asc") return (a.biz_name ?? "").localeCompare(b.biz_name ?? "");
+      if (sort === "verdict") return verdictKey(a).localeCompare(verdictKey(b));
+      return 0;
+    });
+    return r;
+  }, [customers, verdictFilter, selectedAm, search, sort]);
+
+  const refreshTime = new Date().toLocaleTimeString("en-US", {
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true,
+  });
+
+  return (
+    <div className="space-y-8 sm:space-y-10 relative">
+      <AmbientSparkles />
+
+      {/* HERO */}
+      <section className="anim-rise pt-8 sm:pt-12 relative flex flex-col items-center text-center">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-line bg-surface/50">
+          <span className="live-dot" />
+          <span className="text-sm text-ink-muted">Live Chargebee + Stripe + Metabase · auto-scored by Claude</span>
+        </div>
+        <div className="relative inline-block mt-6 sm:mt-8">
+          <span aria-hidden className="header-spark text-accent-pink text-sm" style={{ top: "-12px", left: "-22px", animationDelay: "0s" }}>✦</span>
+          <span aria-hidden className="header-spark text-accent-purple text-xs" style={{ top: "-4px", right: "-26px", animationDelay: "0.7s" }}>✦</span>
+          <span aria-hidden className="header-spark text-accent-yellow text-sm" style={{ bottom: "8px", right: "-12px", animationDelay: "1.4s" }}>✦</span>
+          <h1 className="hero-float text-pink-shimmer text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-extrabold tracking-tight leading-[0.95] m-0">
+            Post-Payment Reviews
+          </h1>
+        </div>
+        <p className="mt-4 sm:mt-6 max-w-2xl text-sm sm:text-base lg:text-lg text-ink-muted leading-relaxed">
+          Which new Discovery customers Zoca should keep, route to an AM, or refund — auto-generated the moment a Chargebee <code className="font-mono text-accent-pink">customer.created</code> webhook fires.
+        </p>
+        <div className="mt-5 sm:mt-7 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-ink-muted">
+          <Feature>Module 02 ICP framework</Feature>
+          <Feature>11-section Word doc per customer</Feature>
+          <Feature>Slack auto-post on verdict</Feature>
+        </div>
+      </section>
+
+      {/* STATUS BAR */}
+      <section className="anim-rise rounded-2xl border border-line bg-surface/50 backdrop-blur-sm px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between flex-wrap gap-3" style={{ animationDelay: "0.10s" }}>
+        <div className="text-xs sm:text-sm text-ink-muted">
+          <span className="text-ink-dim mr-2">SHOWING</span>
+          <span className="text-ink font-semibold">{rows.length}</span>
+          <span className="text-ink-dim mx-1">/ {customers.length}</span>
+          <span className="text-ink-dim mx-2 sm:mx-3">·</span>
+          <span className="text-ink-dim mr-2">LAST REFRESH</span>
+          <span className="text-ink font-semibold tabular-nums">{refreshTime}</span>
+        </div>
+        <button
+          onClick={() => { setVerdictFilter("all"); setSelectedAm(null); setSearch(""); }}
+          className="btn-bounce text-xs text-ink-dim hover:text-accent-blue transition px-3 py-1 rounded border border-line hover:border-accent-blue"
+        >
+          Clear filters
+        </button>
+      </section>
+
+      {/* STAT STRIP — click to filter */}
+      <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 anim-cascade">
+        <StatCard label="Total since floor" value={totals.all}        tone="ink"    active={verdictFilter === "all"}          onClick={() => setVerdictFilter("all")} />
+        <StatCard label="✅ ICP"            value={totals.icp}        tone="green"  active={verdictFilter === "icp"}          onClick={() => setVerdictFilter(verdictFilter === "icp" ? "all" : "icp")} />
+        <StatCard label="⚠️ Review"         value={totals.review}     tone="yellow" active={verdictFilter === "review"}       onClick={() => setVerdictFilter(verdictFilter === "review" ? "all" : "review")} />
+        <StatCard label="❌ Not ICP"        value={totals.not_icp}    tone="red"    active={verdictFilter === "not_icp"}      onClick={() => setVerdictFilter(verdictFilter === "not_icp" ? "all" : "not_icp")} />
+        <StatCard label="Out of scope"     value={totals.out_of_scope} tone="dim"  active={verdictFilter === "out_of_scope"} onClick={() => setVerdictFilter(verdictFilter === "out_of_scope" ? "all" : "out_of_scope")} />
+        <StatCard label="Pending"          value={totals.pending}     tone="dim"   active={verdictFilter === "pending"}      onClick={() => setVerdictFilter(verdictFilter === "pending" ? "all" : "pending")} />
+        <StatCard label="Failed"           value={totals.failed}      tone="red"   active={verdictFilter === "failed"}       onClick={() => setVerdictFilter(verdictFilter === "failed" ? "all" : "failed")} />
+      </section>
+
+      {/* CHARTS GRID */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 anim-rise" style={{ animationDelay: "0.22s" }}>
+        <div className="rounded-2xl border border-line bg-surface p-5">
+          <div className="text-xs text-ink-dim uppercase tracking-wide font-medium mb-3">Verdict distribution</div>
+          <VerdictDonut data={donutData} selected={verdictFilter} onSelect={setVerdictFilter} />
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-3 text-xs">
+            {donutData.map((d) => (
+              <div
+                key={d.key}
+                onClick={() => setVerdictFilter(verdictFilter === d.key ? "all" : d.key)}
+                style={{ cursor: "pointer" }}
+                className="flex items-center gap-2 hover:text-accent-blue transition"
+              >
+                <span style={{ display: "inline-block", width: 8, height: 8, background: d.color, borderRadius: 2 }} />
+                <span className="text-ink-muted">{d.label}</span>
+                <span className="ml-auto text-ink-dim tabular-nums">{d.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs text-ink-dim uppercase tracking-wide font-medium">AM workload</div>
+            {selectedAm && (
+              <button onClick={() => setSelectedAm(null)} className="text-xs text-accent-blue hover:underline">clear</button>
+            )}
+          </div>
+          <AMBarChart data={amCounts} selectedAm={selectedAm} onSelectAm={setSelectedAm} />
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-5">
+          <div className="text-xs text-ink-dim uppercase tracking-wide font-medium mb-3">Creation timeline (14d)</div>
+          <CreationTimeline data={timeline} />
+        </div>
+      </section>
+
+      {/* FILTER BAR */}
+      <section className="rounded-2xl border border-line bg-surface px-4 py-3 flex items-center gap-3 flex-wrap">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search business name, customer ID, email…"
+          className="flex-1 min-w-[200px] px-3 py-1.5 text-sm rounded-lg border border-line bg-elevated focus:outline-none focus:border-accent-blue focus:bg-surface transition"
+        />
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as SortKey)}
+          className="px-3 py-1.5 text-sm rounded-lg border border-line bg-surface hover:border-accent-blue cursor-pointer transition"
+        >
+          <option value="created_desc">Newest first</option>
+          <option value="created_asc">Oldest first</option>
+          <option value="biz_asc">Business name A→Z</option>
+          <option value="verdict">By verdict</option>
+        </select>
+      </section>
+
+      {/* TABLE */}
+      <section className="rounded-2xl border border-line bg-surface overflow-hidden anim-rise" style={{ animationDelay: "0.32s" }}>
+        <table className="w-full text-sm">
+          <thead className="bg-elevated text-ink-dim uppercase tracking-wide text-xs">
+            <tr>
+              <th className="text-left px-4 py-3 font-medium">Created</th>
+              <th className="text-left px-4 py-3 font-medium">Customer</th>
+              <th className="text-left px-4 py-3 font-medium">Email</th>
+              <th className="text-left px-4 py-3 font-medium">AM</th>
+              <th className="text-left px-4 py-3 font-medium">Scope</th>
+              <th className="text-left px-4 py-3 font-medium">Verdict</th>
+              <th className="text-right px-4 py-3 font-medium">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={7} className="text-center py-12 text-ink-faint">
+                  No customers match the current filters. <button onClick={() => { setVerdictFilter("all"); setSelectedAm(null); setSearch(""); }} className="text-accent-blue hover:underline">Clear filters</button>
+                </td>
+              </tr>
+            )}
+            {rows.map((c) => (
+              <tr key={c.cb_customer_id} className="table-row-anim row-sweep border-t border-line-soft hover:bg-elevated transition-colors">
+                <td className="px-4 py-3 text-ink-muted whitespace-nowrap tabular-nums">{fmtDate(c.cb_created_at)}</td>
+                <td className="px-4 py-3">
+                  <div className="font-semibold text-ink">{c.biz_name ?? "(no biz)"}</div>
+                  <div className="text-xs text-ink-dim font-mono">{c.cb_customer_id}</div>
+                </td>
+                <td className="px-4 py-3 text-ink-muted">{c.email ?? "—"}</td>
+                <td className="px-4 py-3 text-ink-muted">{c.am_name ?? "—"}</td>
+                <td className="px-4 py-3"><ScopeChip scope={c.scope} /></td>
+                <td className="px-4 py-3"><VerdictPill c={c} /></td>
+                <td className="px-4 py-3 text-right">
+                  {c.status === "ready" ? (
+                    <Link href={`/reports/${c.cb_customer_id}`} className="text-accent-blue font-medium hover:text-accent-blue-strong transition group">
+                      Open report <span className="link-arrow inline-block">→</span>
+                    </Link>
+                  ) : c.status === "out_of_scope" ? (
+                    <span className="text-ink-faint">—</span>
+                  ) : (
+                    <ManualAnalysisButton customerId={c.cb_customer_id} />
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </div>
+  );
+}
