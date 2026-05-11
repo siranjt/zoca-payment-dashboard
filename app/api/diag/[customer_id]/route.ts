@@ -16,8 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
-import "@/lib/db/queries"; // ensure POSTGRES_URL is wired up
+import { sql } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

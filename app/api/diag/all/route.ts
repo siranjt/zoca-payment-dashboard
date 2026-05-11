@@ -7,8 +7,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
-import "@/lib/db/queries";
+import { sql } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

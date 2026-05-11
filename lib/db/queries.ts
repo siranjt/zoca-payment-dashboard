@@ -1,31 +1,41 @@
 /**
  * Postgres queries — one module so the rest of the app stays SQL-free.
  *
- * Flexible about env var naming: works whether the connection string is
- * exposed as POSTGRES_URL (legacy Vercel Postgres), DATABASE_URL (Neon
- * native), or STORAGE_URL / STORAGE_DATABASE_URL (Vercel Marketplace).
+ * Uses @neondatabase/serverless's HTTP driver directly instead of
+ * @vercel/postgres. Each query is one stateless HTTP request to Neon's
+ * primary — no connection pool, no PgBouncer routing, no read-replica
+ * lag. That cures the "diag/all sees events 21-37 but diag/health sees
+ * max_id=30 on the same DB" inconsistency we were hitting with the
+ * pooled driver.
+ *
+ * The `sql` template-tag API is identical, so existing call sites work
+ * unchanged.
  */
 
-// Surface the right connection string to @vercel/postgres BEFORE importing it.
-// The library reads POSTGRES_URL at module load.
-if (!process.env.POSTGRES_URL) {
-  process.env.POSTGRES_URL =
-    process.env.POSTGRES_PRISMA_URL ??
-    process.env.DATABASE_URL ??
-    process.env.STORAGE_DATABASE_URL ??
-    process.env.STORAGE_URL ??
-    process.env.DATABASE_POSTGRES_URL ??
-    "";
-}
-if (!process.env.POSTGRES_URL_NON_POOLING) {
-  process.env.POSTGRES_URL_NON_POOLING =
-    process.env.DATABASE_URL_UNPOOLED ??
-    process.env.STORAGE_DATABASE_URL_UNPOOLED ??
-    process.env.POSTGRES_URL ??
-    "";
+import { neon } from "@neondatabase/serverless";
+
+// Pick the unpooled URL by preference — it's a direct connection to Neon's
+// primary, which is what we want for read-after-write consistency. Fall
+// back to the pooled URL if no unpooled variant exists.
+const CONNECTION_URL =
+  process.env.DATABASE_URL_UNPOOLED ??
+  process.env.STORAGE_DATABASE_URL_UNPOOLED ??
+  process.env.POSTGRES_URL_NON_POOLING ??
+  process.env.POSTGRES_URL ??
+  process.env.DATABASE_URL ??
+  process.env.STORAGE_DATABASE_URL ??
+  process.env.STORAGE_URL ??
+  process.env.POSTGRES_PRISMA_URL ??
+  "";
+
+if (!CONNECTION_URL) {
+  console.error("[db] No connection URL found in env. Set DATABASE_URL_UNPOOLED or POSTGRES_URL.");
 }
 
-import { sql } from "@vercel/postgres";
+// neon() returns a tagged template function. With `fullResults: true` it
+// returns `{ rows, rowCount, ... }` matching @vercel/postgres's shape, so
+// existing destructuring like `const { rows } = await sql\`...\`` works.
+export const sql = neon(CONNECTION_URL, { fullResults: true }) as any;
 
 export type CustomerScope =
   | "discovery_first_pay"
