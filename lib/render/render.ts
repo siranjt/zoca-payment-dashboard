@@ -6,10 +6,12 @@
  * single source of truth). We import via require to use the existing JS.
  */
 
-import { put } from "@vercel/blob";
+import { put, del } from "@vercel/blob";
 import { Packer } from "docx";
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { buildReport } = require("./template");
+// Template lives as a .js file (shared with the standalone validator's
+// render_report.js). TS imports it cleanly because `allowJs: true` is set
+// in tsconfig.json.
+import { buildReport } from "./template";
 
 export type RenderResult = {
   docxUrl: string;
@@ -17,6 +19,30 @@ export type RenderResult = {
   mdUrl: string;
   bytes: number;
 };
+
+/**
+ * Put a blob at a fixed, predictable key. If a blob already exists at that key,
+ * delete it first then re-upload. Works across @vercel/blob versions whether or
+ * not they support `allowOverwrite`.
+ */
+async function putAtFixedKey(
+  key: string,
+  body: Buffer | string,
+  contentType: string,
+): Promise<{ url: string }> {
+  const opts = { access: "public" as const, contentType, addRandomSuffix: false };
+  try {
+    return await put(key, body, opts);
+  } catch (e: any) {
+    const msg = String(e?.message ?? e);
+    // Vercel Blob throws on duplicate key when addRandomSuffix is false.
+    if (msg.toLowerCase().includes("already exists") || msg.toLowerCase().includes("blob exists")) {
+      await del(key).catch(() => undefined);
+      return await put(key, body, opts);
+    }
+    throw e;
+  }
+}
 
 export async function renderAndUpload(args: {
   cbCustomerId: string;
@@ -28,24 +54,21 @@ export async function renderAndUpload(args: {
 
   const baseKey = `reports/${args.cbCustomerId}`;
   const [docxResult, jsonResult, mdResult] = await Promise.all([
-    put(`${baseKey}.docx`, buf, {
-      access: "public",
-      contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-    }),
-    put(`${baseKey}.report_data.json`, JSON.stringify(args.reportData, null, 2), {
-      access: "public",
-      contentType: "application/json",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-    }),
-    put(`${baseKey}.analysis.md`, args.markdown, {
-      access: "public",
-      contentType: "text/markdown; charset=utf-8",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-    }),
+    putAtFixedKey(
+      `${baseKey}.docx`,
+      buf,
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ),
+    putAtFixedKey(
+      `${baseKey}.report_data.json`,
+      JSON.stringify(args.reportData, null, 2),
+      "application/json",
+    ),
+    putAtFixedKey(
+      `${baseKey}.analysis.md`,
+      args.markdown,
+      "text/markdown; charset=utf-8",
+    ),
   ]);
 
   return {
