@@ -46,26 +46,6 @@ function loadPrompt(): string {
   return fs.readFileSync(promptPath, "utf8");
 }
 
-function extractJsonBlock(raw: string): any {
-  // Find the LAST fenced ```json … ``` block in the response.
-  const re = /```json\s*([\s\S]*?)```/g;
-  let last: string | null = null;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(raw)) !== null) last = m[1];
-  if (!last) throw new Error("no ```json block found in LLM output");
-  try {
-    return JSON.parse(last.trim());
-  } catch (e: any) {
-    throw new Error(`json parse failed: ${e.message}`);
-  }
-}
-
-function extractMarkdown(raw: string): string {
-  // The Markdown is everything BEFORE the final ```json block.
-  const idx = raw.lastIndexOf("```json");
-  return idx === -1 ? raw.trim() : raw.slice(0, idx).trim();
-}
-
 // Hard cap on a single LLM round-trip. Sized to fit comfortably inside
 // Vercel's Fluid-Compute budget (~300s minus ~60s bundle = ~240s left for LLM
 // + render + slack). 180s gives Sonnet plenty of room (typical: 40–90s).
@@ -73,7 +53,18 @@ function extractMarkdown(raw: string): string {
 // timeouts fail immediately rather than spawning 2 silent retries.
 const REQUEST_TIMEOUT_MS = Number(process.env.ANTHROPIC_TIMEOUT_MS ?? 180_000);
 
-async function callOnce(systemPrompt: string, userPrompt: string): Promise<string> {
+const TOOL_NAME = "submit_analysis";
+
+/**
+ * Single LLM round-trip using forced tool use. Defining `tool_choice` makes the
+ * model REQUIRED to call our tool with structured JSON — Anthropic's API
+ * guarantees the input will parse, so we never have to scrape a fenced ```json
+ * block out of free-form text (which Haiku was unreliable at emitting).
+ *
+ * The model is free to also emit a text content block alongside the tool call;
+ * we capture that as the Markdown analysis for Slack.
+ */
+async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ markdown: string; reportData: any }> {
   const t0 = Date.now();
   try {
     const res = await client.messages.create(
@@ -81,14 +72,43 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<strin
         model: MODEL,
         max_tokens: MAX_TOKENS,
         system: systemPrompt,
+        tools: [
+          {
+            name: TOOL_NAME,
+            description:
+              "Submit the final structured payment-validation analysis. " +
+              "Call this with the complete report JSON object conforming to the " +
+              "schema described in the system prompt. Always emit a text content " +
+              "block with the full Markdown analysis BEFORE calling this tool.",
+            // Permissive schema — the system prompt describes the expected
+            // structure in detail. We just need the model to emit a JSON object.
+            input_schema: {
+              type: "object",
+              properties: {},
+              additionalProperties: true,
+            },
+          },
+        ],
+        tool_choice: { type: "tool", name: TOOL_NAME },
         messages: [{ role: "user", content: userPrompt }],
       },
       { timeout: REQUEST_TIMEOUT_MS },
     );
     const elapsed = Date.now() - t0;
-    console.log(`[llm] model=${MODEL} elapsed_ms=${elapsed} stop=${res.stop_reason}`);
-    // Concatenate all text blocks
-    return res.content.map((b: any) => b.type === "text" ? b.text : "").join("");
+    console.log(`[llm] model=${MODEL} elapsed_ms=${elapsed} stop=${res.stop_reason} blocks=${res.content.map((b: any) => b.type).join(",")}`);
+
+    let markdown = "";
+    let reportData: any = null;
+    for (const block of res.content as any[]) {
+      if (block.type === "text") markdown += block.text;
+      else if (block.type === "tool_use" && block.name === TOOL_NAME) {
+        reportData = block.input;
+      }
+    }
+    if (!reportData) {
+      throw new Error("model did not call submit_analysis tool");
+    }
+    return { markdown: markdown.trim(), reportData };
   } catch (e: any) {
     const elapsed = Date.now() - t0;
     console.error(`[llm] FAILED model=${MODEL} elapsed_ms=${elapsed} err=${e?.message ?? e}`);
@@ -97,8 +117,10 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<strin
 }
 
 /**
- * Run the evaluation. Retries the LLM call once on JSON-parse failure.
- * Throws if both attempts fail; the caller falls back to Markdown-only.
+ * Run the evaluation. Forced tool use guarantees parseable JSON on the first
+ * attempt, so the old "retry once on JSON-parse failure" loop is no longer
+ * needed. Single call, single error mode (network/timeout) handled at a
+ * higher level.
  */
 export async function evaluate(args: {
   bundle: Bundle;
@@ -122,25 +144,30 @@ export async function evaluate(args: {
     JSON.stringify(args.hubspot ?? null, null, 2),
     "```",
     "",
-    "Now produce the full Markdown analysis, then the fenced ```json block per the schema.",
+    "Produce the full Markdown analysis as text content, THEN call the `submit_analysis` tool with the report JSON.",
   ].join("\n");
 
-  let raw = "";
-  let parseErr: Error | null = null;
-  let reportData: any = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    raw = await callOnce(systemPrompt, attempt === 0
-      ? userPrompt
-      : userPrompt + "\n\n[RETRY] Your previous response had malformed JSON. Re-emit the full response with VALID parseable JSON in the ```json block at the end.");
-    try {
-      reportData = extractJsonBlock(raw);
-      parseErr = null;
-      break;
-    } catch (e: any) {
-      parseErr = e;
-    }
-  }
-  if (parseErr) throw new Error(`evaluator: ${parseErr.message}`);
+  const { markdown, reportData } = await callOnce(systemPrompt, userPrompt);
+  // If the model skipped the text content (some models do that with forced
+  // tool use), synthesize a minimal markdown summary from the structured data
+  // so Slack still has something to post.
+  const finalMarkdown = markdown.length > 50 ? markdown : synthesizeMarkdownFromReport(reportData);
+  return { markdown: finalMarkdown, reportData, raw: markdown };
+}
 
-  return { markdown: extractMarkdown(raw), reportData, raw };
+/**
+ * Fallback for when the model emits only the tool call with no text content.
+ * Builds a brief Markdown summary from the structured report data so we have
+ * something to post to Slack. Defensive about missing fields.
+ */
+function synthesizeMarkdownFromReport(report: any): string {
+  const exec = report?.exec ?? {};
+  const lines: string[] = [];
+  if (exec.verdict_label) lines.push(`**Verdict:** ${exec.verdict_label}`);
+  if (exec.driver) lines.push(`**One-line driver:** ${exec.driver}`);
+  if (exec.recommended_action_label) lines.push(`**Recommended action:** ${exec.recommended_action_label}`);
+  if (exec.reinforcing_flags) lines.push(`**Key flag:** ${exec.reinforcing_flags}`);
+  lines.push("");
+  lines.push("_Full analysis available in the Word doc attached to this thread._");
+  return lines.join("\n");
 }
