@@ -336,108 +336,114 @@ table {
    Layered entrance + micro-interaction effects.
    ───────────────────────────────────────────── */
 
-/* Fade-in + slide-up entrance for sections, cards, table rows */
-@keyframes fade-rise {
-  from { opacity: 0; transform: translateY(12px); }
+/* ──────────────────────────────────────────────
+   SEAMLESS ENTRANCE WAVE
+   One continuous timeline from page-load to last
+   row — no separate animation events. Easing is
+   ease-out-quint (gentle deceleration, no bounce).
+   ────────────────────────────────────────────── */
+
+/* Shared easing curve */
+:root { --ease-glide: cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Soft fade-up — small translate, gentle deceleration */
+@keyframes glide-in {
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.anim-rise {
+
+/* Base classes everything composes from */
+.anim-rise,
+.anim-cascade > *,
+.table-row-anim,
+.verdict-callout {
   opacity: 0;
-  animation: fade-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: glide-in 0.65s var(--ease-glide) forwards;
 }
 
-/* Staggered cascade — apply to a parent with `.anim-cascade > *`. Each child
-   gets a progressively-larger delay so they appear one after another. */
-.anim-cascade > * {
-  opacity: 0;
-  animation: fade-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-.anim-cascade > *:nth-child(1)  { animation-delay: 0.05s; }
-.anim-cascade > *:nth-child(2)  { animation-delay: 0.12s; }
-.anim-cascade > *:nth-child(3)  { animation-delay: 0.19s; }
-.anim-cascade > *:nth-child(4)  { animation-delay: 0.26s; }
-.anim-cascade > *:nth-child(5)  { animation-delay: 0.33s; }
-.anim-cascade > *:nth-child(6)  { animation-delay: 0.40s; }
-.anim-cascade > *:nth-child(7)  { animation-delay: 0.47s; }
-.anim-cascade > *:nth-child(8)  { animation-delay: 0.54s; }
-.anim-cascade > *:nth-child(9)  { animation-delay: 0.61s; }
-.anim-cascade > *:nth-child(10) { animation-delay: 0.68s; }
+/* Cascade — tight 35ms steps so cards feel like a single sweep, not 7
+   individual entrances. Base 0.18s places it just after the hero settles. */
+.anim-cascade > *:nth-child(1)  { animation-delay: 0.18s; }
+.anim-cascade > *:nth-child(2)  { animation-delay: 0.215s; }
+.anim-cascade > *:nth-child(3)  { animation-delay: 0.250s; }
+.anim-cascade > *:nth-child(4)  { animation-delay: 0.285s; }
+.anim-cascade > *:nth-child(5)  { animation-delay: 0.320s; }
+.anim-cascade > *:nth-child(6)  { animation-delay: 0.355s; }
+.anim-cascade > *:nth-child(7)  { animation-delay: 0.390s; }
+.anim-cascade > *:nth-child(8)  { animation-delay: 0.425s; }
+.anim-cascade > *:nth-child(9)  { animation-delay: 0.460s; }
+.anim-cascade > *:nth-child(10) { animation-delay: 0.495s; }
 
-/* Stat card hover — lift + glow */
-.stat-card {
-  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms ease, border-color 220ms ease;
-}
-.stat-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 24px -8px rgba(45, 91, 255, 0.18);
-  border-color: rgba(45, 91, 255, 0.35);
-}
+/* Table rows pick up right where the cards leave off — no gap between waves */
+.table-row-anim:nth-child(1)  { animation-delay: 0.42s; }
+.table-row-anim:nth-child(2)  { animation-delay: 0.46s; }
+.table-row-anim:nth-child(3)  { animation-delay: 0.50s; }
+.table-row-anim:nth-child(4)  { animation-delay: 0.54s; }
+.table-row-anim:nth-child(5)  { animation-delay: 0.58s; }
+.table-row-anim:nth-child(6)  { animation-delay: 0.62s; }
+.table-row-anim:nth-child(7)  { animation-delay: 0.66s; }
+.table-row-anim:nth-child(8)  { animation-delay: 0.70s; }
+.table-row-anim:nth-child(9)  { animation-delay: 0.74s; }
+.table-row-anim:nth-child(10) { animation-delay: 0.78s; }
 
-/* Number pop — when a stat value first renders, scale it in */
-@keyframes number-pop {
-  0%   { transform: scale(0.6); opacity: 0; }
-  60%  { transform: scale(1.12); opacity: 1; }
-  100% { transform: scale(1); }
-}
+/* Stat number — simple opacity fade synchronised with the card it lives in.
+   No scale/bounce — that read as visual noise on top of the card entrance. */
 .anim-number {
   display: inline-block;
-  animation: number-pop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  animation-delay: 0.15s;
   opacity: 0;
+  animation: glide-in 0.65s var(--ease-glide) forwards;
 }
 
-/* Verdict pill — chip-pop on render + breathing glow if it's a "needs AM call" */
+/* Stat card hover — gentle 220ms lift with a soft blue halo */
+.stat-card {
+  transition: transform 280ms var(--ease-glide), box-shadow 280ms var(--ease-glide), border-color 280ms ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -14px rgba(45, 91, 255, 0.22);
+  border-color: rgba(45, 91, 255, 0.30);
+}
+
+/* Verdict pill — simple fade-in tied to the row, smooth hover lift */
 .verdict-pill {
-  animation: chip-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
-  transition: transform 200ms ease;
+  transition: transform 220ms var(--ease-glide);
 }
 .verdict-pill:hover { transform: translateY(-1px); }
 
+/* "Needs AM call" pill — soft breathing glow, slow and unobtrusive */
+@keyframes breathe-soft {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(236, 72, 153, 0); }
+  50%      { box-shadow: 0 0 0 4px rgba(236, 72, 153, 0.12); }
+}
 .verdict-needs-am {
-  animation: pulse-pink 2.2s ease-in-out infinite;
+  animation: breathe-soft 3.4s ease-in-out infinite;
 }
 
-/* Table row entrance — first 10 rows cascade in */
-.table-row-anim {
-  opacity: 0;
-  animation: fade-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-.table-row-anim:nth-child(1)  { animation-delay: 0.08s; }
-.table-row-anim:nth-child(2)  { animation-delay: 0.14s; }
-.table-row-anim:nth-child(3)  { animation-delay: 0.20s; }
-.table-row-anim:nth-child(4)  { animation-delay: 0.26s; }
-.table-row-anim:nth-child(5)  { animation-delay: 0.32s; }
-.table-row-anim:nth-child(6)  { animation-delay: 0.38s; }
-.table-row-anim:nth-child(7)  { animation-delay: 0.44s; }
-.table-row-anim:nth-child(8)  { animation-delay: 0.50s; }
-.table-row-anim:nth-child(9)  { animation-delay: 0.56s; }
-.table-row-anim:nth-child(10) { animation-delay: 0.62s; }
-
-/* Open-report link arrow slide on hover */
+/* Open-report link arrow — micro-motion on hover */
 .link-arrow {
   display: inline-block;
-  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 280ms var(--ease-glide);
 }
 a:hover .link-arrow,
 .link-arrow:hover {
   transform: translateX(4px);
 }
 
-/* Hero title float — gentle vertical drift to add life to the gradient text */
-@keyframes hero-float {
+/* Hero title float — long, slow, almost imperceptible vertical drift */
+@keyframes hero-drift {
   0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-4px); }
+  50%      { transform: translateY(-3px); }
 }
-.hero-float { animation: hero-float 5s ease-in-out infinite; }
+.hero-float { animation: hero-drift 8s ease-in-out infinite; }
 
-/* Pulsing glow ring around the verdict callout banner */
-@keyframes verdict-aura {
-  0%, 100% { box-shadow: 0 0 0 0 currentColor, 0 0 24px -6px currentColor; opacity: 0.85; }
-  50%      { box-shadow: 0 0 0 6px transparent, 0 0 36px -2px currentColor; opacity: 1; }
+/* Verdict callout — slow ambient halo (no harsh pulses) */
+@keyframes verdict-halo {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 0.85; }
+  50%      { box-shadow: 0 0 30px -8px currentColor; opacity: 1; }
 }
 .verdict-callout {
   position: relative;
-  animation: fade-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: glide-in 0.65s var(--ease-glide) forwards;
 }
 .verdict-callout::after {
   content: "";
@@ -446,25 +452,37 @@ a:hover .link-arrow,
   border-radius: inherit;
   pointer-events: none;
   z-index: -1;
-  opacity: 0.18;
-  animation: verdict-aura 3.4s ease-in-out infinite;
+  opacity: 0.14;
+  animation: verdict-halo 5s ease-in-out infinite;
 }
 
-/* Button press feedback */
-.btn-bounce {
-  transition: transform 120ms ease;
-}
-.btn-bounce:active { transform: scale(0.96); }
+/* Button press feedback — small, fast */
+.btn-bounce { transition: transform 120ms ease; }
+.btn-bounce:active { transform: scale(0.97); }
 
-/* Open-report row highlight — subtle blue-tinted sweep on hover */
-@keyframes row-sweep {
-  from { background-position: -200% 0; }
-  to   { background-position: 200% 0; }
+/* Row hover — fade in a soft blue wash. No looping animation — looping
+   distracts the eye while scanning. */
+.row-sweep {
+  transition: background-color 280ms ease, background-image 280ms ease;
 }
 .row-sweep:hover {
-  background-image: linear-gradient(90deg, transparent 0%, rgba(45, 91, 255, 0.04) 50%, transparent 100%);
-  background-size: 200% 100%;
-  animation: row-sweep 1.6s ease-in-out infinite;
+  background-image: linear-gradient(90deg, transparent 0%, rgba(45, 91, 255, 0.05) 50%, transparent 100%);
+}
+
+/* Honour reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .anim-rise,
+  .anim-cascade > *,
+  .table-row-anim,
+  .verdict-callout,
+  .anim-number,
+  .hero-float,
+  .verdict-callout::after,
+  .verdict-needs-am {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
 /* ─────────────────────────────────────────────

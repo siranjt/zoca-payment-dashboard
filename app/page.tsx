@@ -124,7 +124,7 @@ export default async function Page() {
       <AmbientSparkles />
 
       {/* HERO */}
-      <section className="pt-8 sm:pt-12 relative flex flex-col items-center text-center">
+      <section className="anim-rise pt-8 sm:pt-12 relative flex flex-col items-center text-center">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-line bg-surface/50">
           <span className="live-dot" />
           <span className="text-sm text-ink-muted">
@@ -164,7 +164,7 @@ export default async function Page() {
       )}
 
       {/* STATUS BAR */}
-      <section className="rounded-2xl border border-line bg-surface/50 backdrop-blur-sm px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between flex-wrap gap-3">
+      <section className="anim-rise rounded-2xl border border-line bg-surface/50 backdrop-blur-sm px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between flex-wrap gap-3" style={{ animationDelay: "0.10s" }}>
         <div className="text-xs sm:text-sm text-ink-muted">
           <span className="text-ink-dim mr-2">SHOWING</span>
           <span className="text-ink font-semibold">{customers.length}</span>
@@ -203,14 +203,14 @@ export default async function Page() {
               className="stat-card rounded-2xl border border-line bg-surface/50 backdrop-blur-sm p-4"
             >
               <div className="text-xs text-ink-dim">{s.label}</div>
-              <div className={`text-2xl font-bold mt-1 ${toneCls} anim-number`} style={{ animationDelay: `${0.4 + i * 0.06}s` }}>{s.value}</div>
+              <div className={`text-2xl font-bold mt-1 ${toneCls}`}>{s.value}</div>
             </div>
           );
         })}
       </section>
 
       {/* TABLE */}
-      <section className="rounded-2xl border border-line bg-surface overflow-hidden">
+      <section className="anim-rise rounded-2xl border border-line bg-surface overflow-hidden" style={{ animationDelay: "0.32s" }}>
         <table className="w-full text-sm">
           <thead className="bg-elevated text-ink-dim uppercase tracking-wide text-xs">
             <tr>
