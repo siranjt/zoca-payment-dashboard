@@ -14,7 +14,10 @@ import { fetchJson } from "@/lib/stage-store";
 import { setCustomerReport, setCustomerStatus, logEvent, getCustomer } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Stage 3 is the longest-running: Anthropic LLM call (Opus can take 60–90s) +
+// docx render + Slack. We bump to 300s — Vercel's Fluid Compute on Hobby
+// supports up to ~800s on this project, so 300 is comfortably safe.
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest, ctx: { params: { customer_id: string } }) {
