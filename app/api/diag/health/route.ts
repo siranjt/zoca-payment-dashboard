@@ -1,0 +1,88 @@
+/**
+ * DB health-check — verifies the runtime can actually read AND write to the
+ * customers/events tables, and reports which env var supplied the connection.
+ *
+ * GET /api/diag/health
+ *
+ * If POSTGRES_URL is wired up correctly, returns counts + a successful test
+ * insert/delete cycle. If anything is wrong (env var missing, table missing,
+ * permissions), the error surfaces in the response instead of being silently
+ * swallowed by logEvent's try/catch.
+ */
+
+import { NextResponse } from "next/server";
+import { sql } from "@vercel/postgres";
+import "@/lib/db/queries"; // wire up POSTGRES_URL
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const out: any = {
+    ok: true,
+    env: {
+      // Which env var actually provided the connection string. Don't leak
+      // the URL itself — just which name was used.
+      postgres_url_set: !!process.env.POSTGRES_URL,
+      database_url_set: !!process.env.DATABASE_URL,
+      storage_url_set: !!process.env.STORAGE_URL,
+      storage_database_url_set: !!process.env.STORAGE_DATABASE_URL,
+      postgres_prisma_url_set: !!process.env.POSTGRES_PRISMA_URL,
+      anthropic_model: process.env.ANTHROPIC_MODEL ?? "(unset → default)",
+      next_public_app_url: process.env.NEXT_PUBLIC_APP_URL ?? "(unset)",
+      vercel_url: process.env.VERCEL_URL ?? "(unset)",
+      slack_channel_id: process.env.SLACK_CHANNEL_ID ?? "(unset)",
+      slack_token_set: !!process.env.SLACK_BOT_TOKEN,
+      blob_token_set: !!process.env.BLOB_READ_WRITE_TOKEN,
+    },
+    checks: {} as Record<string, any>,
+  };
+
+  // 1. Can we SELECT from customers?
+  try {
+    const { rows } = await sql`SELECT COUNT(*)::int AS n FROM customers`;
+    out.checks.customers_count = rows[0]?.n ?? null;
+  } catch (e: any) {
+    out.ok = false;
+    out.checks.customers_count_error = e?.message ?? String(e);
+  }
+
+  // 2. Can we SELECT from events?
+  try {
+    const { rows } = await sql`SELECT COUNT(*)::int AS n, MAX(id)::int AS max_id FROM events`;
+    out.checks.events_count = rows[0]?.n ?? null;
+    out.checks.events_max_id = rows[0]?.max_id ?? null;
+  } catch (e: any) {
+    out.ok = false;
+    out.checks.events_count_error = e?.message ?? String(e);
+  }
+
+  // 3. Can we INSERT into events without an FK target?
+  // We use a sentinel customer id that we'll create + clean up so the FK is satisfied.
+  const sentinelId = `__health_${Date.now()}`;
+  try {
+    await sql`
+      INSERT INTO customers (cb_customer_id, cb_created_at, status, scope)
+      VALUES (${sentinelId}, NOW(), 'pending', 'pending')
+      ON CONFLICT DO NOTHING
+    `;
+    const { rows } = await sql`
+      INSERT INTO events (cb_customer_id, kind, detail)
+      VALUES (${sentinelId}, 'health_test', '{"probe":true}'::jsonb)
+      RETURNING id
+    `;
+    out.checks.test_event_id = rows[0]?.id ?? null;
+    // Cleanup
+    await sql`DELETE FROM events WHERE cb_customer_id = ${sentinelId}`;
+    await sql`DELETE FROM customers WHERE cb_customer_id = ${sentinelId}`;
+    out.checks.cleanup = "ok";
+  } catch (e: any) {
+    out.ok = false;
+    out.checks.test_insert_error = e?.message ?? String(e);
+    // Best-effort cleanup
+    try { await sql`DELETE FROM events WHERE cb_customer_id = ${sentinelId}`; } catch {}
+    try { await sql`DELETE FROM customers WHERE cb_customer_id = ${sentinelId}`; } catch {}
+  }
+
+  return NextResponse.json(out);
+}
