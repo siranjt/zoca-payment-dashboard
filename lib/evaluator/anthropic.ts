@@ -76,90 +76,58 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
           {
             name: TOOL_NAME,
             description:
-              "Submit the final structured payment-validation analysis. " +
-              "Call this with the complete report JSON object conforming to the " +
-              "schema described in the system prompt (the same shape as " +
-              "report_schema.example.json — Be Beauty Studio worked example). " +
-              "Every top-level key listed below is REQUIRED. " +
-              "Always emit a text content block with the full Markdown analysis " +
-              "BEFORE calling this tool.",
-            // Schema requires all 11 top-level keys from report_schema.example.json
-            // so the model is forced to populate the full report. Nested objects
-            // are still permissive (additionalProperties:true) because their
-            // detailed shape is described in the system prompt.
+              "Submit the final ICP verdict and executive summary for this customer. " +
+              "Call this with the verdict fields — the dashboard and Slack post depend " +
+              "on the verdict_label, driver, and recommended_action_label. The full " +
+              "narrative Word doc is generated from your text content block, so write " +
+              "that BEFORE calling this tool.",
+            // CRITICAL: keep the schema small. Earlier versions required 11 top-level
+            // sections and the model timed out at 180s trying to populate all of them.
+            // We only force the model to fill the fields the dashboard surfaces; the
+            // rest of the docx report sections are filled with defaults in code (see
+            // wrapExecAsFullReport in this file).
             input_schema: {
               type: "object",
               properties: {
-                meta: {
-                  type: "object",
-                  description: "Doc header/footer metadata: classification_banner, title, subtitle, subject_account, header_text",
-                  additionalProperties: true,
+                verdict_label: {
+                  type: "string",
+                  enum: ["ICP", "Review", "Not ICP"],
+                  description: "Final classification — one of: ICP, Review, Not ICP",
                 },
-                exec: {
-                  type: "object",
-                  description: "Executive summary — the verdict block displayed on the dashboard and Slack.",
-                  properties: {
-                    verdict_label: {
-                      type: "string",
-                      enum: ["ICP", "Review", "Not ICP"],
-                      description: "Final classification — one of: ICP, Review, Not ICP",
-                    },
-                    verdict_status: {
-                      type: "string",
-                      enum: ["PASS", "WARN", "FAIL"],
-                      description: "Status banner color — PASS (green) / WARN (yellow) / FAIL (red)",
-                    },
-                    recommended_action_label: {
-                      type: "string",
-                      description: "Short imperative phrase — e.g. 'AM-led recovery within 7 days', 'Onboard normally', 'Refund and re-entry trigger'. Include the word 'AM' if the AM team needs to act.",
-                    },
-                    driver: {
-                      type: "string",
-                      description: "One-line reason for the verdict, citing the specific Module 02 rule that drove the decision.",
-                    },
-                    reinforcing_flags: {
-                      type: "string",
-                      description: "Single string listing 2-4 additional flags that reinforce the verdict (semicolon-separated).",
-                    },
-                    mitigating_factors: {
-                      type: "string",
-                      description: "Single string listing factors that argue AGAINST the verdict (semicolon-separated). Use empty string if none.",
-                    },
-                    summary_paragraphs: {
-                      type: "array",
-                      items: { type: "string" },
-                      description: "4-6 paragraph executive summary, in order.",
-                    },
-                    net_retention_picture: {
-                      type: "string",
-                      description: "One-paragraph retention outlook.",
-                    },
-                    likely_outcome: {
-                      type: "string",
-                      description: "Most probable outcome if no action is taken (refund, churn, retain, etc.).",
-                    },
-                  },
-                  required: [
-                    "verdict_label", "verdict_status", "recommended_action_label",
-                    "driver", "reinforcing_flags", "mitigating_factors",
-                    "summary_paragraphs", "net_retention_picture", "likely_outcome",
-                  ],
-                  additionalProperties: true,
+                verdict_status: {
+                  type: "string",
+                  enum: ["PASS", "WARN", "FAIL"],
+                  description: "Status banner color — PASS (green) / WARN (yellow) / FAIL (red)",
                 },
-                section1: { type: "object", description: "Subject identifier + data sources tables", additionalProperties: true },
-                section3_risks: { type: "object", description: "Risk register with intro + risks array", additionalProperties: true },
-                section4_framework: { type: "object", description: "ICP framework application: tier_application, vertical_lock_text, step1 array, step2 array", additionalProperties: true },
-                section5_pointers: { type: "array", description: "Post-payment pointer tasks", items: { type: "object", additionalProperties: true } },
-                section6_actions: { type: "object", description: "Recommended actions table", additionalProperties: true },
-                section7_systemic: { type: "object", description: "Systemic recommendations", additionalProperties: true },
-                section8_gaps: { type: "object", description: "Open gaps + data engineering followups", additionalProperties: true },
-                section9_evidence: { type: "object", description: "Evidence appendix", additionalProperties: true },
-                references: { type: "object", description: "Source references", additionalProperties: true },
+                driver: {
+                  type: "string",
+                  description: "One-line reason for the verdict, citing the specific Module 02 rule.",
+                },
+                recommended_action_label: {
+                  type: "string",
+                  description: "Short imperative phrase like 'AM-led recovery within 7 days' or 'Onboard normally'. Include 'AM' if the AM team should act.",
+                },
+                reinforcing_flags: {
+                  type: "string",
+                  description: "Semicolon-separated list of 2-4 additional flags that reinforce the verdict.",
+                },
+                mitigating_factors: {
+                  type: "string",
+                  description: "Semicolon-separated factors that argue AGAINST the verdict. Empty string if none.",
+                },
+                summary_paragraphs: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "3-5 paragraph executive summary.",
+                },
+                likely_outcome: {
+                  type: "string",
+                  description: "Most probable outcome if no action is taken.",
+                },
               },
               required: [
-                "meta", "exec", "section1", "section3_risks", "section4_framework",
-                "section5_pointers", "section6_actions", "section7_systemic",
-                "section8_gaps", "section9_evidence", "references",
+                "verdict_label", "verdict_status", "driver",
+                "recommended_action_label", "reinforcing_flags", "summary_paragraphs",
               ],
               additionalProperties: true,
             },
@@ -174,16 +142,21 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
     console.log(`[llm] model=${MODEL} elapsed_ms=${elapsed} stop=${res.stop_reason} blocks=${res.content.map((b: any) => b.type).join(",")}`);
 
     let markdown = "";
-    let reportData: any = null;
+    let toolInput: any = null;
     for (const block of res.content as any[]) {
       if (block.type === "text") markdown += block.text;
       else if (block.type === "tool_use" && block.name === TOOL_NAME) {
-        reportData = block.input;
+        toolInput = block.input;
       }
     }
-    if (!reportData) {
+    if (!toolInput) {
       throw new Error("model did not call submit_analysis tool");
     }
+    // Wrap the flat tool output (verdict fields) into the full report-data
+    // structure the docx renderer expects. The narrative markdown content
+    // produced by the model becomes the body of the doc; the verdict block
+    // becomes the executive summary section.
+    const reportData = wrapExecAsFullReport(toolInput, markdown);
     return { markdown: markdown.trim(), reportData };
   } catch (e: any) {
     const elapsed = Date.now() - t0;
@@ -221,8 +194,8 @@ export async function evaluate(args: {
     "```",
     "",
     "INSTRUCTIONS:",
-    "1) Write the full Markdown analysis as a TEXT content block. Include the verdict, the Module 02 rule that drives it, the reinforcing flags, the comms analysis, and the recommended action. Quote specific evidence.",
-    "2) Then call the `submit_analysis` tool. The tool input MUST include `exec.verdict_label` (one of: ICP, Review, Not ICP), `exec.verdict_status` (PASS/WARN/FAIL), `exec.driver` (one-line reason), `exec.recommended_action_label`, `exec.reinforcing_flags`, `exec.mitigating_factors`, `exec.summary_paragraphs`, `exec.net_retention_picture`, `exec.likely_outcome`, plus ALL the other top-level sections (meta, section1, section3_risks, section4_framework, section5_pointers, section6_actions, section7_systemic, section8_gaps, section9_evidence, references). Do not skip any required field — the dashboard and the Word doc renderer both depend on them.",
+    "1) Write a thorough Markdown analysis as a TEXT content block. Include: the verdict, the Module 02 rule that drives it (cite section + rule), the reinforcing flags, key facts from the bundle (lead prediction, reviews, booking platform, AE/AM), the comms analysis, and the recommended action. Quote specific evidence — exact phone-call durations, message text, missed checks, etc.",
+    "2) THEN call the `submit_analysis` tool with the verdict fields. Required fields: verdict_label (ICP / Review / Not ICP), verdict_status (PASS / WARN / FAIL), driver (one-line cause), recommended_action_label (short imperative), reinforcing_flags (semicolon-separated), summary_paragraphs (3-5 paragraphs).",
   ].join("\n");
 
   const { markdown, reportData } = await callOnce(systemPrompt, userPrompt);
@@ -248,4 +221,50 @@ function synthesizeMarkdownFromReport(report: any): string {
   lines.push("");
   lines.push("_Full analysis available in the Word doc attached to this thread._");
   return lines.join("\n");
+}
+
+/**
+ * Wrap the flat tool output into the full 11-section report-data structure
+ * the docx renderer expects. The verdict fields go into `exec`; everything
+ * else gets sensible defaults so the renderer doesn't crash on missing keys.
+ *
+ * Keeping the renderer's structure stable lets us add sections back to the
+ * LLM-driven output later without re-plumbing the renderer.
+ */
+function wrapExecAsFullReport(toolInput: any, markdown: string): any {
+  const exec = {
+    verdict_label: toolInput.verdict_label ?? null,
+    verdict_status: toolInput.verdict_status ?? null,
+    recommended_action_label: toolInput.recommended_action_label ?? null,
+    driver: toolInput.driver ?? null,
+    reinforcing_flags: toolInput.reinforcing_flags ?? "",
+    mitigating_factors: toolInput.mitigating_factors ?? "",
+    summary_paragraphs: Array.isArray(toolInput.summary_paragraphs)
+      ? toolInput.summary_paragraphs
+      : (markdown ? [markdown] : []),
+    net_retention_picture: toolInput.net_retention_picture ?? "",
+    likely_outcome: toolInput.likely_outcome ?? "",
+  };
+  return {
+    meta: {
+      classification_banner: "ZOCA · CONFIDENTIAL",
+      title: "Post-Payment Account Review",
+      subtitle: "ICP Fit Assessment & Post-Payment Pointer Analysis",
+      subject_account: "(see Section 1)",
+      header_text: "Zoca · Confidential — Post-Payment Account Review",
+    },
+    exec,
+    section1: { subject_table: [], data_sources_table: [] },
+    section3_risks: { intro: "", risks: [] },
+    section4_framework: { tier_application: "", vertical_lock_text: "", step1: [], step2: [] },
+    section5_pointers: [],
+    section6_actions: { intro: "", actions: [] },
+    section7_systemic: { intro: "", recommendations: [] },
+    section8_gaps: { intro: "", gaps: [] },
+    section9_evidence: { intro: "", items: [] },
+    references: { intro: "", items: [] },
+    // The full narrative analysis goes here for renderers that want it in
+    // one chunk instead of section-by-section.
+    full_analysis_markdown: markdown,
+  };
 }
