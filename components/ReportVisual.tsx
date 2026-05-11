@@ -415,7 +415,7 @@ function Framework({ framework }: { framework: ReportData["section4_framework"] 
       {/* DISQUALIFIERS */}
       {framework.disqualifiers && framework.disqualifiers.length > 0 && (
         <FrameworkBlock title="Additional disqualifiers" subtitle={undefined} delay={0.30}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 items-stretch">
             {framework.disqualifiers.map((d, idx) => (
               <DisqualifierRow key={idx} label={d.label} status={d.status} evidence={d.evidence} idx={idx} />
             ))}
