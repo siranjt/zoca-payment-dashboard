@@ -70,7 +70,10 @@ export async function renderAndUpload(args: {
     ),
     putAtFixedKey(
       `${baseKey}.analysis.md`,
-      args.markdown,
+      // Vercel Blob put() rejects empty-string bodies. Guarantee a non-empty
+      // payload so the upload always succeeds even if the model produced no
+      // text content alongside its tool call.
+      args.markdown && args.markdown.length > 0 ? args.markdown : `_(no narrative content recorded for ${args.cbCustomerId})_`,
       "text/markdown; charset=utf-8",
     ),
   ]);

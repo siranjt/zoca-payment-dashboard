@@ -54,15 +54,18 @@ export async function POST(req: NextRequest, ctx: { params: { customer_id: strin
     return NextResponse.json({ ok: false, stage: "load_json", error: e.message }, { status: 500 });
   }
 
-  // Re-render and re-upload to the same blob key (overwrite)
+  // Re-render and re-upload to the same blob key (overwrite).
+  // We pass a non-empty placeholder for markdown — Vercel Blob's put()
+  // rejects empty-string bodies. The actual narrative markdown isn't
+  // available at rerender time (it lived only in the LLM's text content
+  // block during the original run); the docx is the canonical artifact.
   let render: { docxUrl: string; jsonUrl: string; mdUrl: string; bytes: number };
   try {
-    // Pull the existing markdown for Slack continuity if it exists; otherwise empty
-    const markdown = ""; // markdown is not persisted in JSON form; we just re-render the docx
+    const placeholderMarkdown = `# ${cust.biz_name ?? customerId}\n\n_Document re-rendered from existing analysis data on ${new Date().toISOString()}. The structured JSON and Word document are the canonical artifacts; see report_blob_json_url and report_blob_docx_url._`;
     render = await renderAndUpload({
       cbCustomerId: customerId,
       reportData,
-      markdown,
+      markdown: placeholderMarkdown,
     });
     await logEvent(customerId, "rerender_done", {
       bytes: render.bytes,
