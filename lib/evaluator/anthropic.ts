@@ -84,7 +84,19 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
       {
         model: MODEL,
         max_tokens: MAX_TOKENS,
-        system: systemPrompt,
+        // PROMPT CACHING — cache the system prompt and tool schema, since
+        // both are identical across every customer (~10K tokens combined).
+        // Cache writes cost 1.25× normal input rate; cache hits cost 0.1×
+        // (90% off). Cache window is 5 minutes (ephemeral). With sporadic
+        // webhook traffic at Zoca, hits are infrequent, but every call
+        // benefits from the warm path even on first write.
+        system: [
+          {
+            type: "text",
+            text: systemPrompt,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
         tools: [
           {
             name: TOOL_NAME,
@@ -381,6 +393,10 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
               ],
               additionalProperties: true,
             },
+            // Cache the entire tool schema. Tool definitions are identical
+            // across customers, so a single ephemeral cache entry covers
+            // every analyze call within the 5-minute window.
+            cache_control: { type: "ephemeral" },
           },
         ],
         tool_choice: { type: "tool", name: TOOL_NAME },
@@ -389,7 +405,22 @@ async function callOnce(systemPrompt: string, userPrompt: string): Promise<{ mar
       { timeout: REQUEST_TIMEOUT_MS },
     );
     const elapsed = Date.now() - t0;
-    console.log(`[llm] model=${MODEL} elapsed_ms=${elapsed} stop=${res.stop_reason} blocks=${res.content.map((b: any) => b.type).join(",")}`);
+    // Cache metrics: usage.cache_creation_input_tokens is the count we
+    // wrote into the cache this call (paid 1.25× rate); usage.cache_read_input_tokens
+    // is the count we hit (paid 0.1× rate). regular input_tokens is everything
+    // not cached. Logging both lets us track hit ratio over time.
+    const u: any = (res as any).usage ?? {};
+    const cacheRead = u.cache_read_input_tokens ?? 0;
+    const cacheWrite = u.cache_creation_input_tokens ?? 0;
+    const inputTok = u.input_tokens ?? 0;
+    const outputTok = u.output_tokens ?? 0;
+    const cacheHit = cacheRead > 0;
+    console.log(
+      `[llm] model=${MODEL} elapsed_ms=${elapsed} stop=${res.stop_reason} ` +
+      `blocks=${res.content.map((b: any) => b.type).join(",")} ` +
+      `cache=${cacheHit ? "HIT" : "MISS"} ` +
+      `tokens=in:${inputTok}+cache_read:${cacheRead}+cache_write:${cacheWrite}/out:${outputTok}`
+    );
 
     let markdown = "";
     let toolInput: any = null;

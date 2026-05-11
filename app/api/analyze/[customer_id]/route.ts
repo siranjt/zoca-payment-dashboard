@@ -33,10 +33,10 @@ import {
 } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
-// Fluid Compute on Hobby/Pro allows up to 800s. Sonnet on this prompt
-// runs ~280s comfortably; 800s gives 2-3× headroom for slow Anthropic
-// responses or large bundles.
-export const maxDuration = 800;
+// Hobby plan caps Serverless Functions at 300s (even with Fluid Compute).
+// Pro plan allows up to 800s. Sonnet on this prompt runs ~280s with 15s
+// of headroom — works on Hobby. If you upgrade to Pro, bump this to 800.
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 function pickEntityFields(b: any) {
