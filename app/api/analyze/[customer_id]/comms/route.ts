@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { commsForEntities } from "@/lib/validator/metabase";
 import { saveStageBundle, fetchJson } from "@/lib/stage-store";
 import { logEvent, setCustomerStatus } from "@/lib/db/queries";
@@ -17,15 +18,20 @@ export const dynamic = "force-dynamic";
 
 const COMMS_WINDOW_DAYS = Number(process.env.COMMS_WINDOW_DAYS ?? 90);
 
-async function fireAndForget(url: string, body: unknown) {
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(2000),
-    });
-  } catch { /* expected */ }
+function triggerNextStage(url: string, body: unknown, label: string) {
+  const work = (async () => {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      console.log(`[stage-trigger] ${label} → ${url} status=${res.status}`);
+    } catch (e: any) {
+      console.error(`[stage-trigger] ${label} → ${url} failed:`, e?.message ?? e);
+    }
+  })();
+  waitUntil(work);
 }
 
 export async function POST(req: NextRequest, ctx: { params: { customer_id: string } }) {
@@ -79,7 +85,11 @@ export async function POST(req: NextRequest, ctx: { params: { customer_id: strin
   const completeBundleUrl = await saveStageBundle(customerId, bundle);
   await logEvent(customerId, "stage2_done", { bundle_url: completeBundleUrl, comms: bundle.comms_summary });
 
-  await fireAndForget(`${baseUrl}/api/analyze/${customerId}/llm`, { bundle_url: completeBundleUrl });
+  triggerNextStage(
+    `${baseUrl}/api/analyze/${customerId}/llm`,
+    { bundle_url: completeBundleUrl },
+    `stage2→stage3(${customerId})`,
+  );
 
   return NextResponse.json({ ok: true, status: "stage2_done", next: "llm" });
 }

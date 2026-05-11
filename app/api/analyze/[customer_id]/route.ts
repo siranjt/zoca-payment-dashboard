@@ -11,6 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { buildBundleLight } from "@/lib/validator/bundle";
 import { saveStageBundle } from "@/lib/stage-store";
 import {
@@ -66,21 +67,25 @@ function deriveScope(b: any): "discovery_first_pay" | "discovery_addon" | "no_su
   return "discovery_first_pay";
 }
 
-async function fireAndForget(url: string, body: unknown) {
-  // Trigger next stage. We await the call briefly so the connection establishes,
-  // but the response body is not awaited — the next stage executes independently.
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-      // Don't wait for the full response. Next stage runs on its own.
-      signal: AbortSignal.timeout(2000),
-    });
-  } catch {
-    // Expected — the AbortSignal will timeout shortly after the connection is established.
-    // The next stage has been triggered; we just don't wait for it.
-  }
+/**
+ * Trigger the next stage via fire-and-forget. Uses Vercel's `waitUntil()` so
+ * the function stays alive until the outbound fetch completes (or fails),
+ * even though we return to the client immediately after.
+ */
+function triggerNextStage(url: string, body: unknown, label: string) {
+  const work = (async () => {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      console.log(`[stage-trigger] ${label} → ${url} status=${res.status}`);
+    } catch (e: any) {
+      console.error(`[stage-trigger] ${label} → ${url} failed:`, e?.message ?? e);
+    }
+  })();
+  waitUntil(work);
 }
 
 export async function POST(req: NextRequest, ctx: { params: { customer_id: string } }) {
@@ -158,7 +163,11 @@ export async function POST(req: NextRequest, ctx: { params: { customer_id: strin
   await logEvent(customerId, "stage1_done", { bundle_url: bundleUrl });
 
   // Fire-and-forget Stage 2
-  await fireAndForget(`${baseUrl}/api/analyze/${customerId}/comms`, { bundle_url: bundleUrl });
+  triggerNextStage(
+    `${baseUrl}/api/analyze/${customerId}/comms`,
+    { bundle_url: bundleUrl },
+    `stage1→stage2(${customerId})`,
+  );
 
   return NextResponse.json({ ok: true, status: "stage1_done", next: "comms" });
 }
