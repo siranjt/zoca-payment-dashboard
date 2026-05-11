@@ -1,6 +1,30 @@
 /**
  * Postgres queries — one module so the rest of the app stays SQL-free.
+ *
+ * Flexible about env var naming: works whether the connection string is
+ * exposed as POSTGRES_URL (legacy Vercel Postgres), DATABASE_URL (Neon
+ * native), or STORAGE_URL / STORAGE_DATABASE_URL (Vercel Marketplace).
  */
+
+// Surface the right connection string to @vercel/postgres BEFORE importing it.
+// The library reads POSTGRES_URL at module load.
+if (!process.env.POSTGRES_URL) {
+  process.env.POSTGRES_URL =
+    process.env.POSTGRES_PRISMA_URL ??
+    process.env.DATABASE_URL ??
+    process.env.STORAGE_DATABASE_URL ??
+    process.env.STORAGE_URL ??
+    process.env.DATABASE_POSTGRES_URL ??
+    "";
+}
+if (!process.env.POSTGRES_URL_NON_POOLING) {
+  process.env.POSTGRES_URL_NON_POOLING =
+    process.env.DATABASE_URL_UNPOOLED ??
+    process.env.STORAGE_DATABASE_URL_UNPOOLED ??
+    process.env.POSTGRES_URL ??
+    "";
+}
+
 import { sql } from "@vercel/postgres";
 
 export type CustomerScope =
