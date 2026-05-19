@@ -33,10 +33,11 @@ import {
 } from "@/lib/db/queries";
 
 export const runtime = "nodejs";
-// Hobby plan caps Serverless Functions at 300s (even with Fluid Compute).
-// Pro plan allows up to 800s. Sonnet on this prompt runs ~280s with 15s
-// of headroom — works on Hobby. If you upgrade to Pro, bump this to 800.
-export const maxDuration = 300;
+// Pro plan allows up to 800s per Serverless Function. Bundle (~80s with
+// comms CSVs) + Sonnet (~200–280s) + render (~5s) + Slack (~5s) ≈ 300–370s
+// worst case. 600s gives us ~2× headroom so retries from prompt-cache misses
+// or slow Metabase responses don't get clipped.
+export const maxDuration = 600;
 export const dynamic = "force-dynamic";
 
 function pickEntityFields(b: any) {
