@@ -102,9 +102,28 @@ async function buildBundleInternal(customerId: string, includeComms: boolean): P
     for (const li of inv.line_item_discounts ?? []) discounts.push({ invoice_id: inv.id, ...li });
   }
 
-  // BaseSheet → entities for this customer
+  // BaseSheet → entities for this customer.
+  // Fallback path: if BaseSheet hasn't synced this customer yet (common for
+  // freshly-paid customers — Metabase sync lags real-time payments by hours
+  // or more), use the cf_entity_id custom field on the Chargebee customer
+  // record. Chargebee stores it at the moment of customer creation, so it's
+  // always available without waiting for downstream sync. The BaseSheet read
+  // remains the authoritative source when present (richer fields: AM/AE,
+  // lead source, primary category, etc.).
   const entities = await mb.basesheetForCustomer(customerId);
-  const entityIds = entities.map(e => e.entity_id).filter(Boolean);
+  let entityIds = entities.map(e => e.entity_id).filter(Boolean);
+  if (entityIds.length === 0 && customer.cf_entity_id) {
+    entityIds = [customer.cf_entity_id];
+    // Synthesize a minimal entity record so downstream code that expects
+    // entities[0].entity_name / .biz_name still finds something. BaseSheet's
+    // richer columns (AE/AM, lead source, etc.) will simply be undefined,
+    // and the LLM prompt handles that gracefully.
+    entities.push({
+      entity_id: customer.cf_entity_id,
+      bizname: customer.cf_entity_name ?? customer.company ?? "",
+      source: "chargebee_cf_fallback",
+    } as any);
+  }
   const firstEntityId = entityIds[0];
 
   // Comms — heavy step (~40s), skipped on light builds (Stage 2 fills these in)
